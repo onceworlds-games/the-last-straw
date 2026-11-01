@@ -1830,7 +1830,7 @@ async function boot() {
       S.hint = null;
       return;
     }
-    if ((h.id === 'aim' || h.id === 'turn' || h.id === 'drop') && !myPlace()) {
+    if ((h.id === 'aim' || h.id === 'turn' || h.id === 'drop' || h.id === 'soft') && !myPlace()) {
       S.hint = null;
       return;
     }

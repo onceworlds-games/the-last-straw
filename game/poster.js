@@ -256,25 +256,82 @@ function icon(R) {
   const { ctx } = R;
   const W = R.W;
   R.screen();
-  // dusk bands and a big low sun
-  const bands = ['#3B2160', '#5A2766', '#82305F', '#B23A64', '#D63F6E', '#E9604F', '#F27B35'];
-  bands.forEach((c, i) => {
-    ctx.fillStyle = c;
-    ctx.fillRect(0, (i * W) / bands.length, W, W / bands.length + 1);
-  });
+  // a graded dusk sky, a big low sun that glows, mesas in the haze
+  const sky = ctx.createLinearGradient(0, 0, 0, W * 0.86);
+  sky.addColorStop(0, '#2A1748');
+  sky.addColorStop(0.35, '#5A2766');
+  sky.addColorStop(0.65, '#B23A64');
+  sky.addColorStop(0.85, '#E9604F');
+  sky.addColorStop(1, '#F59A4A');
+  ctx.fillStyle = sky;
+  ctx.fillRect(0, 0, W, W);
+  const sx = W * 0.5, sy = W * 0.62;
+  const glow = ctx.createRadialGradient(sx, sy, W * 0.2, sx, sy, W * 0.62);
+  glow.addColorStop(0, 'rgba(255,214,107,0.55)');
+  glow.addColorStop(1, 'rgba(255,214,107,0)');
+  ctx.fillStyle = glow;
+  ctx.fillRect(0, 0, W, W);
+  ctx.save();
+  ctx.globalAlpha = 0.16;
+  ctx.fillStyle = '#FFE7A3';
+  for (let i = 0; i < 9; i++) {
+    const a = Math.PI + (i / 8) * Math.PI;
+    ctx.beginPath();
+    ctx.moveTo(sx, sy);
+    ctx.arc(sx, sy, W, a - 0.06, a + 0.06);
+    ctx.closePath();
+    ctx.fill();
+  }
+  ctx.restore();
+  const sun = ctx.createRadialGradient(sx - W * 0.06, sy - W * 0.08, W * 0.02, sx, sy, W * 0.34);
+  sun.addColorStop(0, '#FFF3C4');
+  sun.addColorStop(0.6, PAL.gold);
+  sun.addColorStop(1, '#F5A93A');
   ctx.beginPath();
-  ctx.arc(W * 0.5, W * 0.62, W * 0.34, 0, Math.PI * 2);
-  ctx.fillStyle = PAL.gold;
+  ctx.arc(sx, sy, W * 0.34, 0, Math.PI * 2);
+  ctx.fillStyle = sun;
   ctx.fill();
-  ctx.fillStyle = '#F2B66F';
-  ctx.fillRect(0, W * 0.86, W, W * 0.14);
-  ctx.fillStyle = PAL.ink;
-  ctx.fillRect(0, W * 0.86, W, W * 0.012);
+  // mesas in the haze
+  ctx.fillStyle = 'rgba(130,48,95,0.75)';
+  ctx.beginPath();
+  ctx.moveTo(0, W * 0.86);
+  ctx.lineTo(0, W * 0.74);
+  ctx.lineTo(W * 0.05, W * 0.7);
+  ctx.lineTo(W * 0.2, W * 0.7);
+  ctx.lineTo(W * 0.24, W * 0.76);
+  ctx.lineTo(W * 0.72, W * 0.77);
+  ctx.lineTo(W * 0.76, W * 0.69);
+  ctx.lineTo(W * 0.94, W * 0.69);
+  ctx.lineTo(W, W * 0.73);
+  ctx.lineTo(W, W * 0.86);
+  ctx.closePath();
+  ctx.fill();
+  const sand = ctx.createLinearGradient(0, W * 0.84, 0, W);
+  sand.addColorStop(0, '#F6CF93');
+  sand.addColorStop(1, '#E7A867');
+  ctx.fillStyle = sand;
+  ctx.fillRect(0, W * 0.85, W, W * 0.15);
   // the camel's head and neck, big, side-eyeing a golden straw in its mouth
   const s = W * 0.62;
   ctx.setTransform(s, 0, 0, -s, W * 0.5 + 1.95 * s, W * 0.47 + 2.7 * s);
   drawCamel(ctx, 1 / s, { t: 0.3, mood: 1, look: 1, chew: false, straw: true, saddle: { y: 0, a: 0 } });
   R.screen();
+  // a dune crest in front (the camel rises behind it), lit on top
+  const crest = new Path2D();
+  crest.moveTo(0, W);
+  crest.lineTo(0, W * 0.95);
+  crest.bezierCurveTo(W * 0.3, W * 0.97, W * 0.55, W * 0.86, W * 0.8, W * 0.87);
+  crest.bezierCurveTo(W * 0.9, W * 0.875, W * 0.96, W * 0.9, W, W * 0.91);
+  crest.lineTo(W, W);
+  crest.closePath();
+  const dg = ctx.createLinearGradient(0, W * 0.86, 0, W);
+  dg.addColorStop(0, '#F8D9A0');
+  dg.addColorStop(1, '#E09A5C');
+  ctx.fillStyle = dg;
+  ctx.fill(crest);
+  ctx.lineWidth = 4;
+  ctx.strokeStyle = PAL.ink;
+  ctx.stroke(crest);
 }
 
 const BADGE = {

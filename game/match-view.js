@@ -311,8 +311,10 @@ export function createMatchView(app) {
     // the needle's hints
     if (mine || S.screen === 'game') {
       const SS = view.S;
-      if (SS >= 50 && SS < 70) hint('needle', 'Watch the needle', 'dial');
-      else if (SS >= 70 && d.step !== 'over') hint('red', 'Every item counts', 'dial');
+      // (only between drops: never over a load coming down)
+      const calm = d.step === 'pick' || d.step === 'place';
+      if (SS >= 50 && SS < 70 && calm) hint('needle', 'Watch the needle', 'dial');
+      else if (SS >= 70 && calm) hint('red', 'Every item counts', 'dial');
       if (SS >= 70) hintDone('needle');
     }
     // the round's end: the sign
@@ -339,7 +341,7 @@ export function createMatchView(app) {
 
     // the playback clock: real time, slowed for a fall, never ahead of the host (unless it's my own drop)
     let rate = 1;
-    if (v && v.r === 'fell' && P.s >= v.at - 24) rate = 0.35;
+    if (v && v.r === 'fell' && P.s >= v.at - 40) rate = 0.35;
     if (S.beat && S.beat.k === k) rate = 0;
     let s = P.s + dt * 60 * rate;
     if (!pred) {
@@ -576,7 +578,7 @@ export function createMatchView(app) {
     // wait for the moment to play out
     const key = `${d.rid}`;
     if (S.signKey !== key) {
-      const ready = last.r === 'broke' ? S.beat && S.beat.k === turnKey(d) && S.beat.t > 1.3 : last.r === 'fell' ? S.play.k === turnKey(d) && S.play.s >= (d.verdict?.at ?? 0) + 20 : true;
+      const ready = last.r === 'broke' ? S.beat && S.beat.k === turnKey(d) && S.beat.t > 1.3 : last.r === 'fell' ? S.play.k === turnKey(d) && S.play.s >= (d.verdict?.at ?? 0) + 10 : true;
       if (m.phase === 'roundEnd' && S.roundEndKey !== key) {
         S.roundEndKey = key;
         S.roundEndSeen = S.t;
