@@ -260,8 +260,8 @@ function icon(R) {
   ctx.fillStyle = PAL.ink;
   ctx.fillRect(0, W * 0.86, W, W * 0.012);
   // the camel's head and neck, big, side-eyeing a golden straw in its mouth
-  const s = W * 0.42;
-  ctx.setTransform(s, 0, 0, -s, W * 0.5 + 2.0 * s, W * 0.5 + 2.55 * s);
+  const s = W * 0.62;
+  ctx.setTransform(s, 0, 0, -s, W * 0.5 + 1.95 * s, W * 0.47 + 2.7 * s);
   drawCamel(ctx, 1 / s, { t: 0.3, mood: 1, look: 1, chew: false, straw: true, saddle: { y: 0, a: 0 } });
   R.screen();
 }

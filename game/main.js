@@ -939,7 +939,9 @@ async function boot() {
       const r = { x: L.W - (L.phone ? 150 : 190) - 12, y: L.gy - (L.phone ? 54 : 62) - 10, w: L.phone ? 150 : 190, h: L.phone ? 54 : 62 };
       if (!L.portrait) r.y = L.dial.y + L.dial.r + 22;
       else r.y = L.cart.y - r.h - 8;
-      if (c.step !== 'deliver' && !S.soloOver) signpost(ctx, r, `Town ${c.leg}`, left === 1 ? '1 to town' : `${left} to town`, { color: PAL.bone });
+      const B = L.buttons;
+      const underButtons = myPlace() && S.touch && [B.drop, B.ccw, B.cw].some((b) => b.x < r.x + r.w && r.x < b.x + b.w && b.y < r.y + r.h && r.y < b.y + b.h);
+      if (c.step !== 'deliver' && !S.soloOver && !underButtons) signpost(ctx, r, `Town ${c.leg}`, left === 1 ? '1 to town' : `${left} to town`, { color: PAL.bone });
       // pause
       if (!S.soloOver) {
         const pr = { x: L.W - 66, y: L.rope.y + L.rope.h + 6, w: 54, h: 50 };

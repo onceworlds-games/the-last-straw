@@ -409,7 +409,7 @@ Jenga. What a player notices in the first minute that is different:
 
 ## Stack and files
 
-Plain ES modules and Canvas 2D, no build (`"dir": "game"`). planck.js 1.5.1 (MIT) vendored as `game/vendor/planck.mjs`
+Plain ES modules and Canvas 2D, no build (`"dir": "game"`). planck.js 1.5.1 (MIT) vendored as `game/vendor/planck.js`
 with its license, imported by relative path so node tests use the same file.
 - `game/items.js` item table and shapes; `game/physics.js` world from a snapshot, drop, step, strain, sway, verdict,
   keyframes; `game/rules.js` offers, turn order, scoring, thresholds, record checks, the daily board; `game/caravan.js`

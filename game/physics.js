@@ -2,7 +2,7 @@
 // strain, falls and breaks. Pure: no page. Every page that rebuilds the same snapshot with the same drop gets the same steps
 // on the same browser engine; the host's run is the one everyone sees.
 
-import * as pl from './vendor/planck.mjs';
+import * as pl from './vendor/planck.js';
 import { ITEMS, itemArea, isItem } from './items.js';
 
 export const DT = 1 / 60;

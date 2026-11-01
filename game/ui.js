@@ -133,6 +133,8 @@ export function layout(W, H, reserved, { lobby = false, tags = 1 } = {}) {
     ccw: { x: bx - b - gap, y: by + B - b, w: b, h: b },
     cw: { x: bx, y: by - b - gap, w: b, h: b },
   };
+  // a short landscape screen: the dial sits above the buttons
+  if (!portrait && phone) dial.y = Math.max(rope.y + rope.h + dial.r + 6, Math.min(dial.y, buttons.cw.y - dial.r - 10));
 
   // the lobby's signposts: right of the camel, above the strip
   const postW = phone ? 150 : 190;
