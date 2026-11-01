@@ -767,7 +767,7 @@ async function boot() {
     fx.reduced = safe(() => !!ow?.settings?.reducedMotion, false);
     const W = Math.max(1, window.innerWidth);
     const H = Math.max(1, window.innerHeight);
-    const pr = safe(() => ow?.settings?.pixelRatio?.(2), null) ?? Math.min(2, window.devicePixelRatio || 1);
+    const pr = (ow?.settings && safe(() => ow.settings.pixelRatio(2), null)) || Math.min(2, window.devicePixelRatio || 1);
     R.resize(W, H, pr);
     S.reserved = safe(() => ow?.ui?.reserved ?? null, null);
     syncLobbyStrip();

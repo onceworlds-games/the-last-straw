@@ -171,7 +171,7 @@ export function createNet(room, lib, hooks = {}) {
     if (fr.length - r.sent >= 12 || (done && fr.length > r.sent)) {
       const batch = fr.slice(r.sent);
       room.send({ tls: KF, k, i: r.sent, f: encodeFrames(batch) });
-      storeFrames(k, r.sent, batch, true);
+      storeFrames(k, r.sent, batch);
       r.sent = fr.length;
     }
     if (done) {
@@ -274,14 +274,14 @@ export function createNet(room, lib, hooks = {}) {
 
   // ------------------------------------------------------------ keyframes (every page)
 
-  function storeFrames(k, i, rows, decoded = false) {
+  function storeFrames(k, i, rows) {
     let list = frames.get(k);
     if (!list) {
       list = [];
       frames.set(k, list);
       if (frames.size > 4) frames.delete(frames.keys().next().value);
     }
-    for (let j = 0; j < rows.length; j++) list[i + j] = decoded ? rows[j] : rows[j];
+    for (let j = 0; j < rows.length; j++) list[i + j] = rows[j];
     hooks.onFrames?.(k);
   }
 
@@ -293,7 +293,7 @@ export function createNet(room, lib, hooks = {}) {
     const n = (first.length - 4) / 3;
     if (!Number.isInteger(n) || n < 1 || n > 61) return;
     const dec = decodeFrames(data.f, n);
-    if (dec) storeFrames(data.k, data.i, dec, true);
+    if (dec) storeFrames(data.k, data.i, dec);
   });
 
   /** The host's keyframes for a turn, in order (gaps skipped). */
