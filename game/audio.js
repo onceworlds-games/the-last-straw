@@ -58,13 +58,37 @@ export function suspend(on) {
 
 // ---------------------------------------------------------------- building blocks
 
-function tone({ f = 440, f2 = null, type = 'sine', at = 0, a = 0.005, d = 0.2, v = 0.3, bus = sfxBus, q = null, lp = null }) {
+function tone({ f = 440, f2 = null, type = 'sine', at = 0, a = 0.005, d = 0.2, v = 0.3, bus = sfxBus, q = null, lp = null, bp = null, vib = 0, vd = 0.04, time = null }) {
   if (!ac) return;
-  const t = ac.currentTime + at;
+  const t = time ?? ac.currentTime + at;
   const o = ac.createOscillator();
   o.type = type;
   o.frequency.setValueAtTime(f, t);
-  if (f2) o.frequency.exponentialRampToValueAtTime(Math.max(20, f2), t + d);
+  if (f2) o.frequency.exponentialRampToValueAtTime(Math.max(20, f2), t + a + d);
+  if (vib) {
+    // a wobble in the pitch (a voice, a groan)
+    const l = ac.createOscillator();
+    const lg = ac.createGain();
+    l.frequency.value = vib;
+    lg.gain.value = f * vd;
+    l.connect(lg).connect(o.frequency);
+    l.start(t);
+    l.stop(t + a + d + 0.05);
+  }
+  if (bp) {
+    const fb = ac.createBiquadFilter();
+    fb.type = 'bandpass';
+    fb.frequency.value = bp;
+    fb.Q.value = q ?? 3;
+    const g0 = ac.createGain();
+    g0.gain.setValueAtTime(0.0001, t);
+    g0.gain.exponentialRampToValueAtTime(Math.max(0.0002, v), t + a);
+    g0.gain.exponentialRampToValueAtTime(0.0001, t + a + d);
+    o.connect(fb).connect(g0).connect(bus);
+    o.start(t);
+    o.stop(t + a + d + 0.05);
+    return;
+  }
   const g = ac.createGain();
   g.gain.setValueAtTime(0.0001, t);
   g.gain.exponentialRampToValueAtTime(Math.max(0.0002, v), t + a);
@@ -178,6 +202,32 @@ export function land(mat, energy = 1) {
     case 'straw':
       noise({ f: 5000, q: 2, d: 0.02, v: 0.06 });
       break;
+    case 'porcelain':
+      // a thin, glassy ring
+      for (const [f, k] of [[1760, 1], [2690, 0.6], [4150, 0.35]]) tone({ f, type: 'sine', d: 0.45, v: v * 0.22 * k });
+      noise({ f: 5200, q: 3, d: 0.03, v: v * 0.25 });
+      break;
+    case 'hay':
+      noise({ f: 2400, q: 0.8, a: 0.01, d: 0.18, v: v * 0.45 });
+      noise({ f: 300, type: 'lowpass', d: 0.1, v: v * 0.5 });
+      break;
+    case 'fur':
+      // a soft landing on four paws, and a chirp
+      noise({ f: 300, type: 'lowpass', d: 0.08, v: v * 0.4 });
+      meow(0.12);
+      break;
+    case 'paper':
+      noise({ f: 3200, q: 0.7, a: 0.005, d: 0.14, v: v * 0.35 });
+      noise({ f: 250, type: 'lowpass', d: 0.08, v: v * 0.4 });
+      break;
+    case 'leather':
+      tone({ f: 110, f2: 70, type: 'sine', d: 0.16, v });
+      tone({ f: 260, f2: 200, type: 'sawtooth', a: 0.02, d: 0.12, v: v * 0.06, lp: 700, q: 6, at: 0.03 });
+      break;
+    case 'cloth':
+      tone({ f: 95, f2: 60, type: 'sine', d: 0.14, v: v * 0.8 });
+      noise({ f: 250, type: 'lowpass', d: 0.12, v: v * 0.6 });
+      break;
     case 'clay':
       tone({ f: 260, f2: 200, type: 'triangle', d: 0.1, v });
       noise({ f: 1500, d: 0.04, v: v * 0.3 });
@@ -189,10 +239,51 @@ export function land(mat, energy = 1) {
   }
 }
 
+/** The camel's opinion of a load: a chew-grunt when it's easy, a long throaty moan near its limit. */
 export function grumble(mood) {
-  const base = 80 + mood * 25;
-  tone({ f: base, f2: base * 0.8, type: 'sawtooth', a: 0.06, d: 0.4 + mood * 0.08, v: 0.08 + mood * 0.03, lp: 500 + mood * 200, q: 6 });
-  tone({ f: base * 1.5, f2: base * 1.1, type: 'square', a: 0.05, d: 0.3, v: 0.02, lp: 700 });
+  const base = 78 + mood * 22;
+  const d = 0.3 + mood * 0.16;
+  tone({ f: base, f2: base * (mood >= 2 ? 0.7 : 0.85), type: 'sawtooth', a: 0.05, d, v: 0.12 + mood * 0.05, bp: 520 + mood * 120, q: 2.5, vib: 6 + mood * 2, vd: 0.03 + mood * 0.015 });
+  tone({ f: base * 2.02, f2: base * 1.5, type: 'sawtooth', a: 0.06, d: d * 0.8, v: 0.04 + mood * 0.02, bp: 1250, q: 4, vib: 7, vd: 0.03 });
+  if (mood >= 2) noise({ f: 900, q: 1.5, a: 0.08, d: d * 0.7, v: 0.06 * mood, at: 0.05 });
+}
+
+/** A cat's little chirp. */
+export function meow(v = 0.1) {
+  tone({ f: 620, f2: 880, type: 'sawtooth', a: 0.03, d: 0.12, v, bp: 1400, q: 3, vib: 9, vd: 0.02, at: 0.04 });
+  tone({ f: 880, f2: 560, type: 'sawtooth', a: 0.01, d: 0.16, v: v * 0.8, bp: 1200, q: 3, at: 0.17 });
+}
+
+/** A soft landing: a chime, a step higher for each one in a row. */
+export function soft(n = 1) {
+  const f = 784 * 2 ** ((Math.min(3, Math.max(1, n)) - 1) * 4 / 12);
+  tone({ f, type: 'sine', d: 0.7, v: 0.16 });
+  tone({ f: f * 1.5, type: 'sine', d: 0.55, v: 0.08, at: 0.07 });
+  tone({ f: f * 2, type: 'triangle', d: 0.35, v: 0.05, at: 0.12 });
+  noise({ f: 8000, type: 'highpass', d: 0.2, v: 0.04, at: 0.05 });
+}
+
+/** A vase bursting: a bright crash, a spray of tiny tinks, a low knock. */
+export function smash() {
+  noise({ f: 4200, type: 'highpass', a: 0.001, d: 0.22, v: 0.55 });
+  noise({ f: 1800, q: 1.2, a: 0.001, d: 0.12, v: 0.35 });
+  for (let i = 0; i < 12; i++) tone({ f: 2200 + Math.random() * 3800, type: 'sine', at: 0.02 + i * 0.03 + Math.random() * 0.03, d: 0.1 + Math.random() * 0.1, v: 0.06 });
+  tone({ f: 140, f2: 70, type: 'sine', d: 0.18, v: 0.35 });
+}
+
+/** A camel bell (on the road). */
+export function bell(i = 0) {
+  const f = i % 2 ? 1046 : 1174;
+  for (const [m, k] of [[1, 1], [2.76, 0.45], [5.4, 0.2]]) tone({ f: f * m, type: 'sine', d: 0.8, v: 0.05 * k });
+}
+
+/** Coins counted into a hand (a town paying). */
+export function coins(n = 6) {
+  for (let i = 0; i < n; i++) {
+    const at = i * 0.055 + Math.random() * 0.02;
+    tone({ f: 2600 + Math.random() * 900, type: 'sine', at, d: 0.12, v: 0.06 });
+    tone({ f: 4100 + Math.random() * 600, type: 'sine', at, d: 0.08, v: 0.03 });
+  }
 }
 export function snort() {
   noise({ f: 600, f2: 200, q: 1, a: 0.01, d: 0.3, v: 0.3 });
@@ -242,6 +333,7 @@ export function select() {
 }
 export function deliver(i = 0) {
   tone({ f: 523 * 2 ** ((i * 2) / 12), type: 'triangle', d: 0.18, v: 0.16 });
+  tone({ f: 3100 + i * 120, type: 'sine', d: 0.08, v: 0.04, at: 0.02 });
 }
 
 // ---------------------------------------------------------------- music
@@ -252,8 +344,11 @@ const semis = (n) => D2 * 2 ** (n / 12);
 const BASS = [0, null, null, 0, null, 3, null, 5, 7, null, null, 5, null, 3, null, 2, 0, null, null, 0, null, 10, null, 9, 7, null, 5, null, 3, null, 2, null];
 const MALLET = { 6: 19, 22: 24, 30: 21 };
 
+// an oud-like phrase over the bass once the load gets heavy (semitones from D3), and its answer
+const OUD = [12, null, 15, null, 17, null, 15, 14, 12, null, null, 10, 12, null, 7, null, 10, null, 12, null, 15, null, 17, 19, 17, null, 15, null, 14, null, 12, null];
+
 export function setMusic(mode, tension = 0) {
-  music.mode = mode; // 'off' | 'menu' | 'play'
+  music.mode = mode; // 'off' | 'menu' | 'play' | 'road'
   music.tension = Math.max(0, Math.min(1, tension));
   if (!ac || mode === 'off') return;
   if (!music.on) {
@@ -268,18 +363,34 @@ function schedule() {
   const bpm = 96 + 28 * music.tension;
   const stepT = 60 / bpm / 4;
   const play = music.mode === 'play';
-  const vol = play ? 1 : 0.5;
+  const vol = play || music.mode === 'road' ? 1 : 0.5;
   // a late timer (a busy or background page) skips the missed steps instead of playing them all at once
   if (music.next < ac.currentTime - 0.05) music.next = ac.currentTime + 0.02;
   while (music.next < ac.currentTime + 0.12) {
     const t = music.next;
     const s = music.step % 32;
     const at = t - ac.currentTime;
-    if (play) {
+    const road = music.mode === 'road';
+    const T = music.tension;
+    if (play || road) {
       if (s % 8 === 0) drumHit(t, 1);
       if (s % 16 === 10) drumHit(t, 0.6);
       if (s % 8 === 4) noise({ time: t, f: 2200, q: 3, d: 0.04, v: 0.12, bus: musicBus });
     }
+    if (road && s % 4 === 0) {
+      const f = (s >> 2) % 2 ? 1046 : 1174;
+      tone({ f, type: 'sine', time: t, d: 0.6, v: 0.05, bus: musicBus });
+      tone({ f: f * 2.76, type: 'sine', time: t, d: 0.3, v: 0.015, bus: musicBus });
+    }
+    // the heavier the load, the more joins in: a plucked oud, then the riq's jingles, then a heartbeat
+    if (play && T > 0.35 && OUD[s] !== null && OUD[s] !== undefined) {
+      const f = semis(OUD[s] + 12);
+      const v = 0.07 + 0.08 * Math.min(1, (T - 0.35) / 0.4);
+      tone({ f, type: 'sawtooth', time: t, a: 0.002, d: 0.16, v, lp: 1600 + T * 1400, q: 2, bus: musicBus });
+      tone({ f: f * 2, type: 'sine', time: t, a: 0.002, d: 0.1, v: v * 0.3, bus: musicBus });
+    }
+    if (play && T > 0.6 && s % 2 === 1) noise({ time: t, f: 6500, q: 2, d: 0.05, v: 0.05 + (T - 0.6) * 0.12, bus: musicBus });
+    if (play && T > 0.85 && (s % 16 === 0 || s % 16 === 3)) drumHit(t, 0.55);
     const dense = music.tension > 0.6 ? 1 : 2;
     if (s % dense === 0) noise({ time: t, f: 7000, type: 'highpass', d: 0.03, v: (s % 4 === 2 ? 0.07 : 0.035) * vol, bus: musicBus });
     const b = BASS[s];

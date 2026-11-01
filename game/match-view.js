@@ -3,7 +3,8 @@
 
 import { ITEMS, STRAW, ANVIL, isItem } from './items.js';
 import { hoverBox, clampHover, snapPose, poseAt, wrapAngle, Sim, CAMEL } from './physics.js';
-import { turnKey, placer, heldItem, nextPlayer, CART_MS } from './rules.js';
+import { turnKey, placer, heldItem, nextPlayer, CART_MS, TWISTS, heldKg } from './rules.js';
+import { BIOMES } from './look.js';
 import { personaOf, botPick, BOT_NAMES, pathAt, checkPath } from './bots.js';
 import { createRng } from './rng.js';
 import { SETTINGS, readSettings } from './net.js';
@@ -164,16 +165,35 @@ export function createMatchView(app) {
     }
     S.camel.stand = Math.max(0, S.camel.stand - wdt / 1.5);
     sc.camel.fold = S.camel.stand;
-    sc.sun = sunFor(m);
-    sc.night = nightFor(m);
+    const d = S.net?.data;
+    const twist = d && d.round === m.round ? d.twist : '';
+    setLight(sc, m, twist);
     sc.lanterns = { n: m.rounds, lit: m.round };
     const age = S.t - S.introAt;
-    sc.sign = { lines: m.round === 1 ? [{ s: 'Load!', size: app.L.phone ? 56 : 80 }] : [{ s: `Round ${m.round}`, size: app.L.phone ? 48 : 64 }], drop: clamp(age / 0.35, 0, 1) };
+    const big = app.L.phone ? 48 : 64;
+    const tw = TWISTS[twist];
+    sc.sign = {
+      lines: m.round === 1 ? [{ s: 'Load!', size: app.L.phone ? 56 : 80 }] : tw ? [{ s: `Round ${m.round}`, size: big * 0.6, color: PAL.violet }, { s: tw.name, size: big, color: PAL.roseDark }, { s: tw.line, size: 22, display: false }] : [{ s: `Round ${m.round}`, size: big }],
+      drop: clamp(age / 0.35, 0, 1),
+    };
+    if (tw && S.twistSaid !== m.roundId) {
+      S.twistSaid = m.roundId;
+      audio.brass([392, 523.3]);
+    }
     return sc;
   }
 
   const sunFor = (m) => clamp(((m.round || 1) - 1) / Math.max(1, (m.rounds || 3) - 1), 0, 1) * 0.75;
   const nightFor = (m) => clamp(((m.round || 1) - 2) / Math.max(1, (m.rounds || 3) - 1), 0, 1) * 0.7;
+  /** The match's place (from its seed) and the hour (gold hour in round 1 to dusk; the night market is at night). */
+  const LANDS = ['market', 'oasis', 'canyon', 'salt', 'ruins'];
+  function setLight(sc, m, twist) {
+    const seed = String(m.seed ?? S.room?.match?.seed ?? '0');
+    let h = 0;
+    for (let i = 0; i < seed.length; i++) h = (h * 31 + seed.charCodeAt(i)) >>> 0;
+    sc.biome = twist === 'night' ? 'night' : LANDS[h % LANDS.length];
+    sc.tod = twist === 'night' ? 0.95 : clamp(((m.round || 1) - 1) / Math.max(1, (m.rounds || 3) - 1), 0, 1) * 0.6;
+  }
 
   function roundScene(m, dt, wdt) {
     const net = S.net;
@@ -182,8 +202,8 @@ export function createMatchView(app) {
     const d = net.data;
     const phase = m.phase;
     sc.tags = seatTags(m, d, phase);
-    sc.sun = sunFor(m);
-    sc.night = nightFor(m);
+    setLight(sc, m, d?.twist ?? '');
+    sc.twist = d?.twist ?? '';
     sc.lanterns = { n: m.rounds, lit: m.round };
     if (!d) {
       sc.needle = 0;
@@ -217,7 +237,7 @@ export function createMatchView(app) {
     sc.camel.mood = view.mood ?? d.mood;
     const top = d.top / 1000;
     // the hover zone stays in the picture all round, so the camera only eases out as the load grows (never pumps each turn)
-    sc.box.y1 = Math.max(3.1, top + 2.4);
+    sc.box.y1 = Math.max(3.0, top + 1.0);
 
     // hands
     if (d.step === 'place' && !(S.pred && S.pred.k === k)) {
@@ -373,7 +393,33 @@ export function createMatchView(app) {
     }
     P.lastS = SS;
 
-    const items = ids.map((item, i) => ({ item, x: pose[i * 3], y: pose[i * 3 + 1], a: pose[i * 3 + 2] }));
+    let items = ids.map((item, i) => ({ item, x: pose[i * 3], y: pose[i * 3 + 1], a: pose[i * 3 + 2] }));
+    const ni = ids.length - 1;
+    const smashAt = v && v.smash >= 0 ? v.smash : pred && pred.runner.smashAt >= 0 ? pred.runner.smashAt : -1;
+    if (smashAt >= 0 && P.s >= smashAt) {
+      if (!P.smashSeen) {
+        P.smashSeen = true;
+        const it = items[ni];
+        app.smashJuice?.(ids[ni], it?.y > -1 ? it.x : d.drop?.x ?? 0, it?.y > -1 ? it.y : (d.top ?? 2400) / 1000);
+      }
+      items[ni] = null;
+    }
+    // a strolling cat: legs move while it walks
+    const cat = items[ni];
+    if (cat && ITEMS[cat.item]?.walks && P.contact) {
+      const dx = cat.x - (P.catX ?? cat.x);
+      P.catX = cat.x;
+      if (Math.abs(dx) > 0.0015) {
+        cat.walking = true;
+        cat.dir = dx > 0 ? 1 : -1;
+        P.catDir = cat.dir;
+        P.catWalkT = S.t;
+      } else if (S.t - (P.catWalkT ?? -9) < 0.12) {
+        cat.walking = true;
+        cat.dir = P.catDir;
+      }
+    }
+    items = items.filter((it) => it && it.y > -1);
     const out = { items, saddle, S: SS, mood: d.step === 'over' ? 3 : d.mood };
     // the hands opening and rising away
     const steps = P.s;
@@ -450,12 +496,18 @@ export function createMatchView(app) {
     if (seen.k !== k) {
       // the turn before this one ended
       if (seen.k && d.last && d.last.r === 'held' && isItem(d.last.item)) {
-        const kg = ITEMS[d.last.item].kg;
+        const kg = heldKg(d.last.item, d.twist, !!d.last.smash);
         const tag = S.tagPos?.get(d.last.by);
-        const it = d.snap[d.snap.length - 1];
-        if (it && S.cam) {
-          const p = toScreen(S.cam, it[1] / 10000, it[2] / 10000);
-          fx.floater(kg > 0 ? `+${kg}` : '+0', p.x, p.y, tag ? { x: tag.x, y: tag.y } : null, PAL.turq);
+        const it = d.last.smash ? null : d.snap[d.snap.length - 1];
+        if (S.cam) {
+          const p = it ? toScreen(S.cam, it[1] / 10000, it[2] / 10000) : toScreen(S.cam, d.drop?.x ?? 0, (d.top ?? 2400) / 1000);
+          if (d.last.smash) fx.floater('Smashed', p.x, p.y - 10, null, PAL.rose);
+          else fx.floater(kg > 0 ? `+${kg}` : '+0', p.x, p.y, tag ? { x: tag.x, y: tag.y } : null, PAL.turq);
+          if (d.last.soft && d.last.bonus > 0) {
+            const n = d.streak?.[d.last.by] ?? 1;
+            fx.floater(n > 1 ? `Soft ×${n} +${d.last.bonus}` : `Soft +${d.last.bonus}`, p.x, p.y - 34, tag ? { x: tag.x, y: tag.y } : null, PAL.gold, 0.25);
+            audio.soft?.(n);
+          }
         }
         audio.grumble(d.mood);
         if (d.last.by === S.me.id && S.lastDrop) {
@@ -543,8 +595,8 @@ export function createMatchView(app) {
     sc.camel.fold = 1;
     sc.camel.knocked = false;
     sc.camel.chew = true;
-    sc.sun = 0.85;
-    sc.night = 0.75;
+    sc.tod = 0.9;
+    sc.biome = 'night';
     sc.needle = null;
     // the heap of the match's junk, the winner's last item on top
     const items = S.roundItems.length ? S.roundItems : [ANVIL, 13, 8, 5, 11, 2];

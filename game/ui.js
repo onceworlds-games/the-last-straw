@@ -96,7 +96,7 @@ export function layout(W, H, reserved, { lobby = false, tags = 1 } = {}) {
   const gy = Math.round(H - sandH);
 
   // the dial: right of the camel on wide screens, under the rope's right end on narrow ones
-  const dialR = Math.round(Math.max(40, Math.min(phone ? (portrait ? 54 : 46) : 78, W * 0.07 + 20)));
+  const dialR = Math.round(Math.max(38, Math.min(phone ? (portrait ? 50 : 42) : 64, W * 0.06 + 18)));
   let dial;
   if (portrait) dial = { x: W - dialR - 14, y: rope.y + rope.h + dialR + 14, r: dialR, post: false };
   else dial = { x: W - dialR - Math.max(18, W * 0.03), y: Math.max(rope.y + rope.h + dialR + 16, gy - dialR * 2.6), r: dialR, post: true };
@@ -151,34 +151,151 @@ export function layout(W, H, reserved, { lobby = false, tags = 1 } = {}) {
   return { W, H, rope, dial, cart, stage, gy, buttons, posts, portrait, phone, compact, strip, menu, center: { x: W / 2, y: top + (gy - top) * 0.36 } };
 }
 
+// ---------------------------------------------------------------- materials for the HUD (screen space)
+
+export const LIGHT_WOOD = { face: '#E8B07A', light: '#F6CD9C', dark: '#B9733F', grain: 'rgba(120,60,25,0.22)' };
+export const DARK_WOOD = { face: '#A8622F', light: '#C9824A', dark: '#6E3A1C', grain: 'rgba(50,20,10,0.3)' };
+
+/** A painted plank: graded face, grain, a lit top edge and a dark lower lip. */
+export function plank(ctx, path, r, wood = LIGHT_WOOD, o = {}) {
+  const g = ctx.createLinearGradient(0, r.y, 0, r.y + r.h);
+  g.addColorStop(0, wood.light);
+  g.addColorStop(0.35, wood.face);
+  g.addColorStop(1, wood.dark);
+  ctx.fillStyle = o.fill ?? g;
+  ctx.fill(path);
+  ctx.save();
+  ctx.clip(path);
+  if (o.fill) {
+    const sh = ctx.createLinearGradient(0, r.y, 0, r.y + r.h);
+    sh.addColorStop(0, 'rgba(255,250,235,0.35)');
+    sh.addColorStop(0.4, 'rgba(255,250,235,0)');
+    sh.addColorStop(1, 'rgba(42,18,64,0.18)');
+    ctx.fillStyle = sh;
+    ctx.fillRect(r.x, r.y, r.w, r.h);
+  }
+  // grain: long wavy lines, seeded by the plank's position so it never crawls
+  ctx.strokeStyle = o.fill ? 'rgba(120,70,30,0.08)' : wood.grain;
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  const n = Math.max(2, Math.round(r.h / 7));
+  for (let k = 0; k < n; k++) {
+    const y0 = r.y + ((k + 0.5) / n) * r.h;
+    const ph = (r.x * 0.37 + k * 1.9) % 6.28;
+    ctx.moveTo(r.x, y0);
+    for (let x = r.x; x <= r.x + r.w; x += 12) ctx.lineTo(x, y0 + Math.sin(x * 0.045 + ph) * 1.6 + Math.sin(x * 0.13 + ph * 2) * 0.6);
+  }
+  ctx.stroke();
+  // the lit top edge
+  ctx.fillStyle = 'rgba(255,248,225,0.45)';
+  ctx.fillRect(r.x, r.y, r.w, 2.5);
+  ctx.restore();
+}
+
+/** A brass plate: a bright bevel, a soft face and a glint. */
+export function brass(ctx, path, r) {
+  const g = ctx.createLinearGradient(0, r.y, 0, r.y + r.h);
+  g.addColorStop(0, '#FFE9A0');
+  g.addColorStop(0.45, PAL.gold);
+  g.addColorStop(1, '#D08A16');
+  ctx.fillStyle = g;
+  ctx.fill(path);
+  ctx.save();
+  ctx.clip(path);
+  ctx.fillStyle = 'rgba(255,255,240,0.45)';
+  ctx.beginPath();
+  ctx.moveTo(r.x + r.w * 0.08, r.y);
+  ctx.lineTo(r.x + r.w * 0.22, r.y);
+  ctx.lineTo(r.x + r.w * 0.12, r.y + r.h);
+  ctx.lineTo(r.x - r.w * 0.02, r.y + r.h);
+  ctx.closePath();
+  ctx.fill();
+  ctx.fillStyle = 'rgba(255,248,220,0.6)';
+  ctx.fillRect(r.x, r.y, r.w, 2.5);
+  ctx.restore();
+}
+
+/** Two screws or nail heads. */
+export function nails(ctx, pts, rad = 3) {
+  for (const [x, y] of pts) {
+    ctx.beginPath();
+    ctx.arc(x, y, rad, 0, Math.PI * 2);
+    ctx.fillStyle = '#5A3A2A';
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(x - rad * 0.3, y - rad * 0.3, rad * 0.45, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(255,240,210,0.55)';
+    ctx.fill();
+  }
+}
+
+/** A rope (two twisted strands). */
+export function rope(ctx, x1, y1, x2, y2, sag = 0, w = 3) {
+  ctx.save();
+  ctx.lineCap = 'round';
+  ctx.strokeStyle = PAL.ink;
+  ctx.lineWidth = w + 2;
+  ctx.beginPath();
+  ctx.moveTo(x1, y1);
+  ctx.quadraticCurveTo((x1 + x2) / 2, (y1 + y2) / 2 + sag, x2, y2);
+  ctx.stroke();
+  ctx.strokeStyle = '#C9A26A';
+  ctx.lineWidth = w;
+  ctx.stroke();
+  ctx.strokeStyle = 'rgba(90,55,25,0.8)';
+  ctx.lineWidth = Math.max(1, w * 0.45);
+  ctx.setLineDash([w * 0.9, w * 1.1]);
+  ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.restore();
+}
+
 // ---------------------------------------------------------------- slabs (the game's buttons)
 
-/** A chunky wooden or gold slab with a label; returns its rect. */
+/** A chunky plank (or, primary, a brass plate) with a label, that presses in; returns its rect. */
 export function slab(ctx, r, label, o = {}) {
   const press = o.pressed ? 3 : 0;
-  const face = o.color ?? (o.primary ? PAL.gold : PAL.bone);
-  const edge = o.edge ?? (o.primary ? PAL.goldDark : PAL.boneDark);
-  const depth = Math.max(4, Math.round(r.h * 0.1));
+  const depth = Math.max(5, Math.round(r.h * 0.11));
+  const rad = Math.min(12, r.h * 0.2);
   ctx.save();
-  // shadow
-  ctx.fillStyle = 'rgba(28,15,46,0.35)';
-  ctx.fill(rr(new Path2D(), r.x + 4, r.y + depth + 4, r.w, r.h, 10));
-  ctx.fillStyle = edge;
-  ctx.fill(rr(new Path2D(), r.x, r.y + press + depth - press, r.w, r.h - depth + press, 10));
-  const top = rr(new Path2D(), r.x, r.y + press, r.w, r.h - depth, 10);
-  ctx.fillStyle = face;
-  ctx.fill(top);
+  // shadow on what is behind
+  ctx.fillStyle = 'rgba(28,15,46,0.38)';
+  ctx.fill(rr(new Path2D(), r.x + 3, r.y + depth + 5, r.w, r.h - depth, rad));
+  // the edge (the plank's thickness)
+  ctx.fillStyle = o.primary ? '#9C5F0E' : o.color ? 'rgba(28,15,46,0.5)' : DARK_WOOD.dark;
+  ctx.fill(rr(new Path2D(), r.x, r.y + depth, r.w, r.h - depth, rad));
+  const fr = { x: r.x, y: r.y + press, w: r.w, h: r.h - depth };
+  const top = rr(new Path2D(), fr.x, fr.y, fr.w, fr.h, rad);
+  if (o.primary) brass(ctx, top, fr);
+  else plank(ctx, top, fr, LIGHT_WOOD, o.color ? { fill: o.color } : {});
   ctx.lineWidth = 3;
   ctx.strokeStyle = PAL.ink;
-  ctx.stroke(rr(new Path2D(), r.x, r.y + press, r.w, r.h - press, 10));
+  ctx.stroke(rr(new Path2D(), r.x, r.y + press, r.w, r.h - press, rad));
   ctx.beginPath();
-  ctx.moveTo(r.x + 2, r.y + r.h - depth);
-  ctx.lineTo(r.x + r.w - 2, r.y + r.h - depth);
+  ctx.moveTo(r.x + 3, r.y + r.h - depth + press * 0.3);
+  ctx.lineTo(r.x + r.w - 3, r.y + r.h - depth + press * 0.3);
   ctx.lineWidth = 2;
   ctx.stroke();
-  if (o.icon) o.icon(ctx, r.x + r.w / 2, r.y + press + (r.h - depth) / 2, Math.min(r.w, r.h - depth));
-  else text(ctx, label, r.x + r.w / 2, r.y + press + (r.h - depth) / 2 + 1, { size: o.size ?? Math.min(30, (r.h - depth) * 0.5), display: o.display !== false, weight: 900, color: PAL.ink, outline: false });
+  const cy = r.y + press + (r.h - depth) / 2;
+  if (o.icon) o.icon(ctx, r.x + r.w / 2, cy, Math.min(r.w, r.h - depth));
+  else {
+    const size = o.size ?? Math.min(30, (r.h - depth) * 0.5);
+    // engraved: a light line under the dark letters
+    text(ctx, label, r.x + r.w / 2, cy + 2.2, { size, display: o.display !== false, weight: 900, color: o.primary ? 'rgba(255,245,200,0.7)' : 'rgba(255,236,200,0.6)', outline: false });
+    text(ctx, label, r.x + r.w / 2, cy + 1, { size, display: o.display !== false, weight: 900, color: PAL.ink, outline: false });
+  }
   if (o.key) text(ctx, o.key, r.x + r.w - 8, r.y + r.h - depth - 9, { size: 12, align: 'right', color: PAL.ink, outline: false, weight: 700 });
+  if (o.badge) {
+    // a small stamp in the corner (a count, a "new")
+    const bx = r.x + r.w - 6, by = r.y + 4;
+    ctx.beginPath();
+    ctx.arc(bx, by, 11, 0, Math.PI * 2);
+    ctx.fillStyle = PAL.rose;
+    ctx.fill();
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    text(ctx, String(o.badge), bx, by + 1, { size: 13, display: true, weight: 900, color: PAL.bone, outline: false });
+  }
   ctx.restore();
   return r;
 }
@@ -276,19 +393,7 @@ export function drawRope(ctx, L, tags, anim, t, dt) {
   const x0 = r.x + (r.w - total) / 2;
   const ropeY = r.y + 6;
   // the rope sags between its ends
-  ctx.save();
-  ctx.lineWidth = 3;
-  ctx.strokeStyle = PAL.ink;
-  ctx.beginPath();
-  ctx.moveTo(r.x, ropeY);
-  ctx.quadraticCurveTo(r.x + r.w / 2, ropeY + 10, r.x + r.w, ropeY);
-  ctx.stroke();
-  ctx.strokeStyle = PAL.boneDark;
-  ctx.lineWidth = 1.2;
-  ctx.setLineDash([5, 4]);
-  ctx.stroke();
-  ctx.setLineDash([]);
-  ctx.restore();
+  rope(ctx, r.x, ropeY, r.x + r.w, ropeY, 20, 3.2);
   const out = new Map();
   tags.forEach((g, i) => {
     let a = anim.get(g.id);
@@ -333,12 +438,16 @@ export function drawRope(ctx, L, tags, anim, t, dt) {
 function drawTag(ctx, g, x, y, w, h, hy, a, t, compact) {
   const seat = SEATS[(g.seat ?? 0) % SEATS.length];
   ctx.globalAlpha = g.faded ? 0.55 : 1;
-  // string
+  // twine from the rope to the grommet
   ctx.strokeStyle = PAL.ink;
-  ctx.lineWidth = 2;
+  ctx.lineWidth = 3.4;
   ctx.beginPath();
-  ctx.moveTo(x + w / 2, hy);
-  ctx.lineTo(x + w / 2, y + 8);
+  ctx.moveTo(x + w / 2 - 3, hy);
+  ctx.lineTo(x + w / 2, y + 12);
+  ctx.lineTo(x + w / 2 + 3, hy);
+  ctx.stroke();
+  ctx.strokeStyle = '#D9B98A';
+  ctx.lineWidth = 1.6;
   ctx.stroke();
   // the tag: a card with clipped top corners
   const c = 12;
@@ -357,12 +466,29 @@ function drawTag(ctx, g, x, y, w, h, hy, a, t, compact) {
   ctx.translate(3, 4);
   ctx.fill(p);
   ctx.restore();
-  ctx.fillStyle = g.me ? '#FFF7EA' : PAL.bone;
+  // kraft card: graded, with fibres
+  const kg0 = ctx.createLinearGradient(x, y, x + w * 0.3, y + h);
+  kg0.addColorStop(0, g.me ? '#FBEBC4' : '#F2D9A6');
+  kg0.addColorStop(1, g.me ? '#EFD49E' : '#DDBB80');
+  ctx.fillStyle = kg0;
   ctx.fill(p);
   ctx.save();
   ctx.clip(p);
+  ctx.strokeStyle = 'rgba(140,96,40,0.18)';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  for (let k = 0; k < 7; k++) {
+    const fy = y + 10 + ((k * 37 + (g.seat ?? 0) * 11) % Math.max(10, h - 14));
+    const fx = x + ((k * 53) % Math.max(10, w - 20));
+    ctx.moveTo(fx, fy);
+    ctx.lineTo(fx + 14, fy + 2);
+  }
+  ctx.stroke();
+  // the seat's colour as a painted band along the bottom, and a fold shadow
   ctx.fillStyle = seat.color;
-  ctx.fillRect(x, y, w, 7);
+  ctx.fillRect(x, y + h - 6, w, 6);
+  ctx.fillStyle = 'rgba(42,18,64,0.1)';
+  ctx.fillRect(x + w - 10, y, 10, h);
   if (g.zero) {
     ctx.fillStyle = 'rgba(214,63,110,0.12)';
     ctx.fillRect(x, y, w, h);
@@ -372,10 +498,21 @@ function drawTag(ctx, g, x, y, w, h, hy, a, t, compact) {
   ctx.strokeStyle = PAL.ink;
   ctx.stroke(p);
   const short = !compact && h < 60;
-  // the hole (short tags have no room for it)
+  // the brass grommet (short tags have no room for it)
   if (!short) {
     ctx.beginPath();
-    ctx.arc(x + w / 2, y + 13, 3.5, 0, Math.PI * 2);
+    ctx.arc(x + w / 2, y + 12, 6, 0, Math.PI * 2);
+    ctx.fillStyle = PAL.goldDark;
+    ctx.fill();
+    ctx.lineWidth = 1.5;
+    ctx.strokeStyle = PAL.ink;
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(x + w / 2 - 1, y + 11, 4.2, Math.PI, Math.PI * 1.7);
+    ctx.strokeStyle = 'rgba(255,245,200,0.8)';
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(x + w / 2, y + 12, 3, 0, Math.PI * 2);
     ctx.fillStyle = PAL.ink;
     ctx.fill();
   }
@@ -496,35 +633,66 @@ export function drawDial(ctx, D, value, o = {}) {
   const ang = (v) => A0 + (A1 - A0) * Math.max(0, Math.min(1.04, v / 100));
   ctx.save();
   if (D.post && o.gy) {
-    ctx.fillStyle = PAL.woodDark ?? '#B4602C';
-    ctx.fillRect(x - 7, y + r * 0.6, 14, o.gy - y - r * 0.6);
+    const pr2 = { x: x - 8, y: y + r * 0.6, w: 16, h: o.gy - y - r * 0.6 + 6 };
+    const pp = new Path2D();
+    pp.rect(pr2.x, pr2.y, pr2.w, pr2.h);
+    const pg = ctx.createLinearGradient(pr2.x, 0, pr2.x + pr2.w, 0);
+    pg.addColorStop(0, DARK_WOOD.light);
+    pg.addColorStop(1, DARK_WOOD.dark);
+    ctx.fillStyle = pg;
+    ctx.fill(pp);
     ctx.strokeStyle = PAL.ink;
     ctx.lineWidth = 2.5;
-    ctx.strokeRect(x - 7, y + r * 0.6, 14, o.gy - y - r * 0.6);
+    ctx.stroke(pp);
   }
-  // shadow, rim, face
+  // shadow, a brass bezel with screws, an aged cream face
   ctx.beginPath();
-  ctx.arc(x + 4, y + 5, r + 6, 0, Math.PI * 2);
-  ctx.fillStyle = 'rgba(28,15,46,0.35)';
+  ctx.arc(x + 4, y + 6, r + 9, 0, Math.PI * 2);
+  ctx.fillStyle = 'rgba(28,15,46,0.38)';
   ctx.fill();
+  const bz = ctx.createLinearGradient(x - r, y - r, x + r, y + r);
+  bz.addColorStop(0, '#FFF0B8');
+  bz.addColorStop(0.35, PAL.gold);
+  bz.addColorStop(0.7, '#C9850F');
+  bz.addColorStop(1, '#8A560A');
   ctx.beginPath();
-  ctx.arc(x, y, r + 6, 0, Math.PI * 2);
-  ctx.fillStyle = PAL.goldDark;
-  ctx.fill();
-  ctx.beginPath();
-  ctx.arc(x - 1.5, y - 1.5, r + 3, 0, Math.PI * 2);
-  ctx.fillStyle = PAL.gold;
+  ctx.arc(x, y, r + 9, 0, Math.PI * 2);
+  ctx.fillStyle = bz;
   ctx.fill();
   ctx.lineWidth = 3;
   ctx.strokeStyle = PAL.ink;
-  ctx.beginPath();
-  ctx.arc(x, y, r + 6, 0, Math.PI * 2);
   ctx.stroke();
+  const bz2 = ctx.createLinearGradient(x + r, y + r, x - r, y - r);
+  bz2.addColorStop(0, '#FFE49A');
+  bz2.addColorStop(1, '#A86A0C');
+  ctx.beginPath();
+  ctx.arc(x, y, r + 2, 0, Math.PI * 2);
+  ctx.fillStyle = bz2;
+  ctx.fill();
+  for (let k = 0; k < 4; k++) {
+    const a = Math.PI / 4 + (k * Math.PI) / 2;
+    const sx = x + Math.cos(a) * (r + 5.5), sy = y + Math.sin(a) * (r + 5.5);
+    ctx.beginPath();
+    ctx.arc(sx, sy, 2.4, 0, Math.PI * 2);
+    ctx.fillStyle = '#7A4A08';
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(255,240,200,0.7)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(sx - 1.6, sy + 1.6);
+    ctx.lineTo(sx + 1.6, sy - 1.6);
+    ctx.stroke();
+  }
+  const face = ctx.createRadialGradient(x - r * 0.3, y - r * 0.35, r * 0.1, x, y, r);
+  face.addColorStop(0, '#FFF8E6');
+  face.addColorStop(0.75, '#F6E6C4');
+  face.addColorStop(1, '#E2C690');
   ctx.beginPath();
   ctx.arc(x, y, r - 2, 0, Math.PI * 2);
-  ctx.fillStyle = PAL.bone;
+  ctx.fillStyle = face;
   ctx.fill();
   ctx.lineWidth = 2;
+  ctx.strokeStyle = PAL.ink;
   ctx.stroke();
   // the red band, hatched
   const [b0, b1] = o.band ?? BAND;
@@ -582,6 +750,25 @@ export function drawDial(ctx, D, value, o = {}) {
   ctx.lineWidth = 2;
   ctx.strokeStyle = PAL.ink;
   ctx.stroke();
+  // the glass: a soft glare across the top and a hard glint
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(x, y, r - 3, 0, Math.PI * 2);
+  ctx.clip();
+  const gl = ctx.createLinearGradient(x, y - r, x, y + r * 0.2);
+  gl.addColorStop(0, 'rgba(255,255,255,0.42)');
+  gl.addColorStop(1, 'rgba(255,255,255,0)');
+  ctx.fillStyle = gl;
+  ctx.beginPath();
+  ctx.ellipse(x - r * 0.1, y - r * 0.55, r * 0.95, r * 0.55, -0.25, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(255,255,255,0.75)';
+  ctx.lineWidth = Math.max(2, r * 0.05);
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.arc(x, y, r * 0.8, Math.PI * 1.12, Math.PI * 1.32);
+  ctx.stroke();
+  ctx.restore();
   ctx.restore();
 }
 
@@ -738,8 +925,12 @@ export function drawCart(ctx, R, o, t) {
   // the hourglass on the right post
   if (o.hourglass !== undefined && o.hourglass !== null) {
     const hx = x + w + 8, hy = y + h * 0.25;
-    hourglass(ctx, hx, hy, 18, 30, o.hourglass, t);
-    if (o.secs !== undefined) text(ctx, String(o.secs), hx + 30, hy + 30, { size: 30, display: true, weight: 900, color: o.secs <= 5 ? PAL.rose : PAL.bone, align: 'left' });
+    hourglass(ctx, hx, hy, 22, 38, o.hourglass, t);
+    if (o.secs !== undefined) {
+      const urgent = o.secs <= 5;
+      const pulse = urgent ? 1 + Math.max(0, Math.sin(t * Math.PI * 2)) * 0.18 : 1;
+      text(ctx, String(o.secs), hx + 34, hy + 36, { size: 32 * pulse, display: true, weight: 900, color: urgent ? PAL.rose : PAL.bone, align: 'left' });
+    }
   }
   ctx.restore();
   return boxes;
@@ -748,6 +939,14 @@ export function drawCart(ctx, R, o, t) {
 function hourglass(ctx, x, y, w, h, frac, t) {
   ctx.save();
   ctx.translate(x, y);
+  // the stand's side posts
+  ctx.fillStyle = DARK_WOOD.face;
+  ctx.strokeStyle = PAL.ink;
+  ctx.lineWidth = 1.5;
+  for (const px of [-5, w + 2]) {
+    ctx.fillRect(px, -3, 3, h + 6);
+    ctx.strokeRect(px, -3, 3, h + 6);
+  }
   const glass = new Path2D();
   glass.moveTo(0, 0);
   glass.lineTo(w, 0);
@@ -764,7 +963,23 @@ function hourglass(ctx, x, y, w, h, frac, t) {
   const f = Math.max(0, Math.min(1, frac));
   ctx.fillRect(0, h / 2 - (h / 2) * f, w, (h / 2) * f);
   ctx.fillRect(0, h - (h / 2) * (1 - f), w, (h / 2) * (1 - f));
-  if (f > 0 && f < 1) ctx.fillRect(w / 2 - 1, h / 2, 2, h / 2);
+  if (f > 0 && f < 1) {
+    ctx.fillRect(w / 2 - 1, h / 2, 2, h / 2);
+    // grains tumbling down the stream, a little cone on the pile
+    ctx.fillStyle = '#FFE9A0';
+    for (let k = 0; k < 3; k++) ctx.fillRect(w / 2 - 0.8, h / 2 + (((t * 60 + k * 7) % (h / 2)) | 0), 1.6, 2);
+    ctx.fillStyle = PAL.gold;
+    ctx.beginPath();
+    const py = h - (h / 2) * (1 - f);
+    ctx.moveTo(1, py + 1);
+    ctx.lineTo(w / 2, py - 4);
+    ctx.lineTo(w - 1, py + 1);
+    ctx.fill();
+  }
+  // the glass's shine
+  ctx.fillStyle = 'rgba(255,255,255,0.5)';
+  ctx.fillRect(2.5, 2, 2, h * 0.3);
+  ctx.fillRect(2.5, h * 0.66, 2, h * 0.28);
   ctx.restore();
   ctx.lineWidth = 2;
   ctx.strokeStyle = PAL.ink;
@@ -837,32 +1052,29 @@ export function drawSign(ctx, cx, cy, lines, drop = 1, o = {}) {
   ctx.translate(cx, y);
   ctx.rotate(swing);
   ctx.translate(-cx, -y);
-  ctx.strokeStyle = PAL.ink;
-  ctx.lineWidth = 3;
-  ctx.beginPath();
-  ctx.moveTo(x + 22, y);
-  ctx.lineTo(x + 40, y - 400);
-  ctx.moveTo(x + w - 22, y);
-  ctx.lineTo(x + w - 40, y - 400);
-  ctx.stroke();
-  const p = rr(new Path2D(), x, y, w, h, 8);
-  ctx.fillStyle = 'rgba(28,15,46,0.4)';
+  rope(ctx, x + 22, y + 6, x + 40, y - 400, 0, 3);
+  rope(ctx, x + w - 22, y + 6, x + w - 40, y - 400, 0, 3);
+  const frame = rr(new Path2D(), x - 6, y - 6, w + 12, h + 12, 10);
+  ctx.fillStyle = 'rgba(28,15,46,0.42)';
   ctx.save();
-  ctx.translate(5, 6);
-  ctx.fill(p);
+  ctx.translate(5, 7);
+  ctx.fill(frame);
   ctx.restore();
-  ctx.fillStyle = o.color ?? PAL.bone;
-  ctx.fill(p);
+  plank(ctx, frame, { x: x - 6, y: y - 6, w: w + 12, h: h + 12 }, DARK_WOOD);
+  ctx.lineWidth = 3;
+  ctx.strokeStyle = PAL.ink;
+  ctx.stroke(frame);
+  const p = rr(new Path2D(), x, y, w, h, 6);
+  plank(ctx, p, { x, y, w, h }, LIGHT_WOOD, { fill: o.color ?? '#FBEBD0' });
   ctx.save();
   ctx.clip(p);
-  ctx.fillStyle = 'rgba(28,15,46,0.08)';
-  for (let k = 1; k < 4; k++) ctx.fillRect(x, y + (h * k) / 4, w, 2);
   ctx.fillStyle = o.band ?? PAL.gold;
-  ctx.fillRect(x, y, w, 6);
+  ctx.fillRect(x, y, w, 5);
   ctx.restore();
-  ctx.lineWidth = 3;
+  ctx.lineWidth = 2;
   ctx.strokeStyle = PAL.ink;
   ctx.stroke(p);
+  nails(ctx, [[x + 22, y + 6], [x + w - 22, y + 6]], 3.2);
   let ly = y + 12;
   for (const l of lines) {
     ly += (l.size * 1.08) / 2;
@@ -929,16 +1141,16 @@ export function signpost(ctx, r, label, value, o = {}) {
   ctx.translate(4, 5);
   ctx.fill(p);
   ctx.restore();
-  ctx.fillStyle = o.color ?? PAL.wood ?? '#E39A57';
-  ctx.fill(p);
+  plank(ctx, p, r, LIGHT_WOOD, o.color ? { fill: o.color } : {});
   ctx.save();
   ctx.clip(p);
-  ctx.fillStyle = PAL.woodDark;
-  ctx.fillRect(r.x, r.y + r.h - 8, r.w, 8);
+  ctx.fillStyle = 'rgba(110,58,28,0.55)';
+  ctx.fillRect(r.x, r.y + r.h - 6, r.w, 6);
   ctx.restore();
   ctx.lineWidth = 3;
   ctx.strokeStyle = PAL.ink;
   ctx.stroke(p);
+  nails(ctx, [[r.x + 9, r.y + r.h / 2]], 2.6);
   text(ctx, label, r.x + 14, r.y + r.h * 0.4, { size: Math.min(26, r.h * 0.42), align: 'left', display: true, weight: 900, color: PAL.ink, outline: false });
   if (value) text(ctx, value, r.x + 14, r.y + r.h * 0.76, { size: 14, align: 'left', color: PAL.violet, outline: false, weight: 800 });
   ctx.restore();

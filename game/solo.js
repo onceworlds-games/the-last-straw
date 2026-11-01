@@ -148,7 +148,7 @@ export function createSolo({ seed, kind = 'caravan', auto = false, onEvent = () 
     st.acc = 0;
     st.prev = null;
     st.lastS = st.runner.strain;
-    st.townX = -3.2 - WALK_SPEED * 3 - 0.6;
+    st.townX = -4.9 - WALK_SPEED * 3; // the gate stops just ahead of the camel's nose
     onEvent('setoff', { mood: c.mood, pay: payout(c, c.mood) });
     return true;
   }
@@ -156,6 +156,7 @@ export function createSolo({ seed, kind = 'caravan', auto = false, onEvent = () 
   function choosePerk(i) {
     if (!caravanPerk(c, i)) return false;
     st.townX = null;
+    st.scroll = 0;
     onEvent('perk', { perk: c.perks[c.perks.length - 1], leg: c.leg });
     newTurn();
     return true;
@@ -281,7 +282,7 @@ export function createSolo({ seed, kind = 'caravan', auto = false, onEvent = () 
         if (c.step === 'over') {
           st.done = true;
           onEvent('done', { kind: 'short' });
-        } else st.perkAt = st.time + 1.4;
+        } else st.perkAt = st.time + 3.2;
       }
       return;
     }

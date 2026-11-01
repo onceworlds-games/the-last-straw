@@ -1,8 +1,11 @@
 // Boot, the screens, input, and the glue between the room (or a local run) and the picture.
 
 import { ITEMS, STRAW, ANVIL } from './items.js';
-import { createSettle, hoverBox, clampHover, quantDrop, wrapAngle, landing, Sim, BAND, CAMEL, LANDING } from './physics.js';
-import { turnKey, placer, heldItem, nextPlayer, moodOf, legBand, dayNumber, dailySeed, dailyBoard, twistPhysics } from './rules.js';
+import { createSettle, hoverBox, clampHover, quantDrop, wrapAngle, landing, extents, Sim, BAND, CAMEL, LANDING } from './physics.js';
+import { turnKey, placer, heldItem, nextPlayer, moodOf, dayNumber, dailySeed, dailyBoard, twistPhysics, TWISTS, heldKg } from './rules.js';
+import { RUN, payout, townOrder, runBand, runPhysics, perkCount } from './caravan.js';
+import { biomeFor, BIOMES } from './look.js';
+import { drawTownPost, drawTwistTag, drawPatience, drawSetOff, perkRects, drawPerkCards } from './runhud.js';
 import { createNet, JOIN, nextSettingValue } from './net.js';
 import { createSolo } from './solo.js';
 import { createMatchView } from './match-view.js';
@@ -268,8 +271,17 @@ async function boot() {
     S.screen = 'solo';
     S.camel.stand = 0;
     S.hand = null;
+    S.receipt = null;
+    S.receiptAt = null;
+    S.receiptBottom = null;
+    S.lostSign = null;
+    S.patienceLostAt = null;
+    S.patienceGainAt = null;
+    S.goSince = 0;
+    S.perkShowAt = 0;
     fx.clear();
     audio.tok();
+    townSign(S.solo, S.t + 0.2);
   }
 
   function endSolo(score) {
@@ -340,6 +352,7 @@ async function boot() {
     const so = isDemo ? S.demo : S.solo;
     if (!so) return;
     const loud = !isDemo || S.screen === 'title';
+    const cam = S.cam;
     switch (type) {
       case 'offer':
         if (!isDemo) audio.scrape();
@@ -361,6 +374,13 @@ async function boot() {
       case 'land':
         landJuice(d.item, d.x, d.y, d.energy, loud);
         break;
+      case 'smash':
+        smashJuice(d.item, d.px ?? d.x, d.y, loud);
+        if (!isDemo && cam) {
+          const p = toScreen(cam, d.px ?? d.x, d.y + 0.4);
+          fx.floater('Smashed', p.x, p.y, null, PAL.rose);
+        }
+        break;
       case 'held':
         if (loud) audio.grumble(d.mood);
         if (!isDemo) {
@@ -373,21 +393,74 @@ async function boot() {
             }
           }
           if (d.top >= CAMEL.trayTop + 3) award('high-rise');
+          if (cam && !d.smash) {
+            const p = toScreen(cam, d.x, d.top + 0.2);
+            const post = S.runSpots?.post;
+            const to = post ? { x: post.x + post.w * 0.45, y: post.y + post.h * 0.7 } : null;
+            const kg = heldKg(d.item, so.c.twist, false);
+            fx.floater(`+${kg}`, p.x, p.y, to, PAL.turq);
+            S.postBumpAt = S.t + 1.0;
+            if (d.soft && d.bonus > 0) {
+              fx.floater(d.streak > 1 ? `Soft ×${d.streak} +${d.bonus}` : `Soft +${d.bonus}`, p.x, p.y - 34, to, PAL.gold, 0.25);
+              audio.soft?.(d.streak);
+              fx.ring(d.x, d.top - 0.3, 0.9, PAL.gold);
+            }
+          }
         }
         break;
-      case 'walk':
+      case 'setoff':
+        if (loud) {
+          audio.brass(d.mood >= 2 ? [392, 523.3, 659.3] : [293.7, 392]);
+          audio.whoosh();
+        }
+        if (!isDemo && d.mood >= 2 && cam) {
+          const p = toScreen(cam, -0.4, so.c.top + 0.6);
+          fx.floater('Sweat ×2', p.x, p.y, null, PAL.rose);
+          award('on-the-brink');
+        }
+        S.goSince = 0;
         break;
-      case 'town':
+      case 'road':
+        if (loud) audio.bell(0);
+        break;
+      case 'arrive':
         if (loud) audio.brass([293.7, 440, 587.3]);
+        S.receipt = { at: S.t, town: d.leg + 1, pay: d.pay, done: false, shown: 0 };
         break;
       case 'deliver': {
-        if (!isDemo && S.cam) {
-          const p = toScreen(S.cam, d.x, d.y);
-          fx.floater(`+${d.kg}`, p.x, p.y, S.myTagPos ?? null, PAL.turq);
+        if (!isDemo && cam) {
+          const p = toScreen(cam, d.x, d.y);
+          fx.floater(`+${d.kg}`, p.x, p.y, S.receiptAt ?? null, PAL.turq);
           audio.deliver(d.i);
         }
         break;
       }
+      case 'leg':
+        if (!isDemo) {
+          if (S.receipt) S.receipt.done = true;
+          const at = S.receiptAt ?? L?.center;
+          if (at) fx.floater(`+${d.kg}`, at.x, (S.receiptBottom ?? at.y) + 26, S.myTagPos ?? null, PAL.gold, 0.1);
+          audio.fanfare();
+          audio.coins(Math.min(14, 4 + Math.round(d.kg / 8)));
+          S.perkShowAt = S.t + 1.1;
+          S.perkSel = null;
+          if (d.pay?.short) {
+            S.patienceLostAt = S.t;
+            audio.snort();
+          }
+          if (d.leg + 1 >= 6) award('six-towns');
+        }
+        break;
+      case 'perk':
+        if (!isDemo) {
+          townSign(so, S.t + VEIL * 0.55);
+          audio.select();
+          if (d.perk === 'water') S.patienceGainAt = S.t;
+          S.receipt = null;
+          S.receiptAt = null;
+          S.receiptBottom = null;
+        }
+        break;
       case 'fall':
         if (loud) {
           fx.hitStop(0, 1.1, 0.35);
@@ -399,8 +472,9 @@ async function boot() {
       case 'over':
         if (d.r === 'broke') {
           if (loud) {
-            fx.hitStop(0.08, 0.8, 0.3);
-            fx.shake(0.8);
+            fx.hitStop(0.1, 0.9, 0.28);
+            fx.shake(0.85, { x: 0.2, y: 1 });
+            fx.punch(0.05);
             audio.crack();
             audio.whoosh();
           }
@@ -408,14 +482,21 @@ async function boot() {
           if (isDemo) S.lastDemoBroke = true;
           if (!isDemo && d.item === STRAW) award('last-straw');
         } else if (loud) audio.thud();
+        if (!isDemo) {
+          S.patienceLostAt = S.t + 0.6;
+          if (d.result === 'lost') S.lostSign = { at: S.t + 0.5, road: d.road };
+        }
         break;
       case 'collapse':
         if (loud) {
           audio.clatter();
-          fx.shake(0.6);
+          fx.shake(0.6, { x: 0.1, y: 1 });
         }
         fx.puff(-0.8, 0.02, 14, 1.4);
         fx.puff(0.9, 0.02, 14, 1.4);
+        break;
+      case 'lost':
+        S.lostSign = null;
         break;
       case 'done':
         if (isDemo) S.demoWait = 2.5;
@@ -424,20 +505,36 @@ async function boot() {
           finishRun(so, true);
         }
         break;
-      case 'leg':
-        if (!isDemo) audio.tok();
-        break;
     }
   }
 
   function landJuice(item, x, y, energy, loud = true) {
-    const kg = ITEMS[item]?.kg ?? 0;
-    if (loud) audio.land(ITEMS[item]?.mat, energy);
+    const def = ITEMS[item];
+    const kg = def?.kg ?? 0;
+    if (loud) audio.land(def?.mat, energy);
     S.camel.squash = Math.min(1, S.camel.squash + 0.2 + kg / 30);
     actor.impulse(kg, energy);
-    fx.shake(Math.min(0.5, kg / 40 + energy * 0.01));
-    fx.puff(x, Math.max(0.02, y - 0.25), Math.round(4 + kg / 2), 0.5 + kg / 30);
+    fx.shake(Math.min(0.55, kg / 36 + energy * 0.01), { x: 0.15, y: 1 });
+    const e = def ? extents(item, 0) : null;
+    const w = e ? (e.maxX - e.minX) / 2 : 0.3;
+    const by = Math.max(0.02, e ? y + e.minY : y - 0.25);
+    fx.puff(x, by, Math.round(3 + kg / 3), 0.4 + kg / 40);
+    fx.debris(def?.mat, x, by, energy, w);
+    fx.ring(x, by, 0.3 + w * 0.9, kg >= 12 ? '#FFE7A3' : '#FFF0D9');
+    if (kg >= 14 && loud) {
+      fx.punch(0.01 + kg / 2400);
+      fx.hitStop(0.04, 0, 1);
+    }
     if (loud && kg >= 8) audio.creak(0.12);
+  }
+
+  function smashJuice(item, x, y, loud = true) {
+    fx.shatter(x, y);
+    fx.shake(0.45, { x: 0.3, y: 1 });
+    if (loud) {
+      fx.hitStop(0.06, 0.3, 0.4);
+      audio.smash?.();
+    }
   }
 
   // ---------------------------------------------------------------- my hands
@@ -657,6 +754,21 @@ async function boot() {
         return;
       }
     }
+    if (S.screen === 'solo' && S.solo && !S.solo.st.auto) {
+      if (S.solo.step === 'perk') {
+        const i = k === 'Digit1' || k === 'Numpad1' ? 0 : k === 'Digit2' || k === 'Numpad2' ? 1 : k === 'Digit3' || k === 'Numpad3' ? 2 : -1;
+        if (i >= 0) choosePerk(i);
+        else if (k === 'ArrowLeft' || k === 'KeyA') S.perkSel = clamp((S.perkSel ?? 1) - 1, 0, 2);
+        else if (k === 'ArrowRight' || k === 'KeyD') S.perkSel = clamp((S.perkSel ?? 1) + 1, 0, 2);
+        else if ((k === 'Space' || k === 'Enter') && S.perkSel != null) choosePerk(S.perkSel);
+        if (k.startsWith('Arrow') || k === 'Space') e.preventDefault();
+        return;
+      }
+      if (k === 'KeyG') {
+        setOff();
+        return;
+      }
+    }
     const pk = myPick();
     if (pk) {
       if (k === 'Digit1' || k === 'Numpad1') doPick(0);
@@ -709,6 +821,8 @@ async function boot() {
       audio.select();
       return;
     }
+    if (id === 'setoff') return setOff();
+    if (id === 'perk') return choosePerk(hit.data);
     if (id === 'caravan') return startSolo('caravan');
     if (id === 'daily') return startSolo('daily');
     if (id === 'invite') return safe(() => ow?.ui?.showInvite?.());
@@ -804,6 +918,12 @@ async function boot() {
   }
 
   function autoStartMatch() {
+    // captures: a Caravan run played by the animals
+    if (autoplay === 'caravan' && S.screen !== 'solo' && S.t > 1.2 && !S.autoRunStarted) {
+      S.autoRunStarted = true;
+      startSolo(params.get('daily') ? 'daily' : 'caravan');
+      return;
+    }
     if (!S.autoStart || !S.room || !S.net) return;
     const room = S.room;
     if (S.screen === 'title') pressPlay();
@@ -825,7 +945,7 @@ async function boot() {
       camel: { mood: 0, look: 0, fold: 0, knocked: false, walk: null, chew: true, straw: false },
       items: [],
       saddle: { y: 0, a: 0 },
-      box: { x0: -2.45, x1: 1.75, y1: 3.1 },
+      box: { x0: -2.75, x1: 1.7, y1: 3.0 },
       needle: null,
       band: BAND,
       tags: null,
@@ -894,32 +1014,118 @@ async function boot() {
 
   // ------------------------------------------------ a local run as a scene
 
+  /** The look of a town on the road: its land, and the hour (a day passes every four towns; the night market at night). */
+  const townTod = (leg) => (((leg - 1) % 4) / 3) * 0.9;
+  function lookOf(so) {
+    const c = so.c, st = so.st;
+    return { leg: c.leg, twist: c.twist, scroll: st.scroll, townX: st.townX };
+  }
+
+  /**
+   * A run's look changes all at once (a new town, the camel back at the stall after a lost load on the road): a sand gust
+   * sweeps across and the change happens behind it.
+   */
+  function soloLook(so, dt) {
+    const now = lookOf(so);
+    const prev = so.look;
+    if (prev && !so.veil && (now.leg !== prev.leg || now.scroll < prev.scroll - 0.01)) {
+      so.veil = { t: 0, from: prev };
+      audio.whoosh();
+    }
+    let look = now;
+    if (so.veil) {
+      so.veil.t += dt;
+      if (so.veil.t < VEIL / 2) look = so.veil.from;
+      if (so.veil.t >= VEIL) so.veil = null;
+      fx.wind(-0.8);
+    }
+    so.look = now;
+    return look;
+  }
+  const VEIL = 0.8;
+
+  function drawVeil(ctx, so) {
+    if (!so.veil) return;
+    const u = clamp(so.veil.t / VEIL, 0, 1);
+    const a = Math.sin(Math.PI * u);
+    const W = L.W, H = L.H;
+    // a wall of blown sand, thick in the middle
+    const g = ctx.createLinearGradient(0, 0, 0, H);
+    g.addColorStop(0, `rgba(240,170,110,${0.75 * a})`);
+    g.addColorStop(0.6, `rgba(246,196,130,${0.95 * a})`);
+    g.addColorStop(1, `rgba(232,160,100,${0.9 * a})`);
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, W, H);
+    ctx.strokeStyle = `rgba(255,236,200,${0.5 * a})`;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    for (let i = 0; i < 26; i++) {
+      const y = ((i * 97.3) % 1) * H + ((i * 61) % H);
+      const x = ((S.t * (900 + i * 37) + i * 211) % (W + 400)) - 200;
+      ctx.moveTo(W - x, y % H);
+      ctx.lineTo(W - x + 60 + (i % 5) * 30, (y % H) + 2);
+    }
+    ctx.stroke();
+  }
+
+  /** The sign as a town comes into view: where it is, and its twist. */
+  function townSign(so, at) {
+    const c = so.c;
+    const big = L?.phone ? 46 : 64;
+    const place = BIOMES[c.twist === 'night' ? 'night' : biomeFor(c.leg)]?.name ?? '';
+    const lines = [{ s: `Town ${c.leg}`, size: big * 0.45, color: PAL.violet }, { s: place, size: big }];
+    const tw = TWISTS[c.twist];
+    if (tw) lines.push({ s: tw.name, size: big * 0.6, color: PAL.roseDark }, { s: tw.line, size: 20, display: false });
+    S.townSign = { at, lines, hold: tw ? 2.2 : 1.4 };
+    if (tw) setTimeout(() => audio.brass([392, 523.3]), Math.max(0, (at - S.t) * 1000));
+  }
+
   function soloWorld(so, demo, wdt) {
     const sc = baseScene();
     const st = so.st;
     const v = so.view();
     const c = so.c;
+    const look = demo ? null : soloLook(so, wdt);
     sc.items = v.items;
     sc.saddle = v.saddle;
     sc.crack = v.crack;
     sc.camel.fold = v.fold;
     sc.camel.knocked = v.knocked;
-    sc.scroll = st.scroll;
+    // the camel faces left: walking, the land slides right
+    sc.scroll = -(look ? look.scroll : st.scroll);
     sc.camel.walk = st.walking ? st.walkPhase : null;
-    sc.town = st.townX;
+    sc.town = look ? look.townX : null;
     sc.bridge = demo;
     sc.needle = v.S;
-    sc.band = demo ? BAND : legBand(c.leg);
+    sc.band = demo ? BAND : runBand(c);
     sc.camel.mood = st.beat ? 3 : c.step === 'settle' ? Math.max(c.mood, moodOf(v.S, c.T)) : c.mood;
     if (st.beat) sc.camel.mood = st.beat.kind === 'broke' ? 3 : 2;
-    sc.sun = demo ? 0.15 : clamp((c.leg - 1) / 7, 0, 0.75);
-    sc.night = demo ? 0 : clamp((c.leg - 4) / 4, 0, 0.8);
+    if (demo) {
+      sc.tod = 0.12;
+      sc.biome = 'market';
+    } else {
+      sc.biome = look.twist === 'night' ? 'night' : biomeFor(look.leg);
+      sc.tod = look.twist === 'night' ? 0.95 : townTod(look.leg);
+      const tw = TWISTS[look.twist];
+      if (tw?.wind && (c.step === 'settle' || c.step === 'road' || c.step === 'place')) fx.wind(Math.sign(runPhysics(c).wind ?? 1) * 0.55);
+    }
     const top = c.top;
-    sc.box.y1 = Math.max(3.1, top + 2.4);
+    sc.box.y1 = Math.max(3.0, top + 1.0);
     if (demo && S.camel.stand > 0) {
       S.camel.stand = Math.max(0, S.camel.stand - wdt / 1.6);
       sc.camel.fold = Math.max(sc.camel.fold, S.camel.stand);
     }
+    // a cat strolling along the load
+    if (v.walkingCat >= 0 && sc.items[v.walkingCat]) {
+      const cat = sc.items[v.walkingCat];
+      const dx = cat.x - (so.catX ?? cat.x);
+      so.catX = cat.x;
+      if (Math.abs(dx) > 0.0012) {
+        so.catDir = dx > 0 ? 1 : -1;
+        so.catWalkT = S.t;
+      }
+      if (S.t - (so.catWalkT ?? -9) < 0.12) sc.items[v.walkingCat] = { ...cat, walking: true, dir: so.catDir };
+    } else so.catX = undefined;
     // the hands
     if (c.step === 'place') {
       const item = so.held;
@@ -936,10 +1142,35 @@ async function boot() {
       const who = st.auto ? st.who : { kind: 'player', seat: 0, sleeve: mySleeve() };
       sc.handsAfter = { item: st.drop.item, x: st.drop.x, y: st.drop.y + open * 0.4, a: st.drop.a, who, open: 1, visible: true, alpha: 1 - open };
     }
-    // the cart
-    sc.cart = { offer: c.offer.slice(), hide: c.step === 'pick' ? -1 : c.pick, big: !demo && c.step === 'pick' && !st.auto, sel: S.cartSel, keys: !S.touch };
-    if (c.step === 'deliver' || st.beat) sc.cart.offer = c.offer.slice();
+    // the cart (it waits at the town while the camel is on the road)
+    const away = c.step === 'road' || c.step === 'deliver' || c.step === 'perk';
+    sc.cart = away ? null : { offer: c.offer.slice(), hide: c.step === 'pick' ? -1 : c.pick, big: !demo && c.step === 'pick' && !st.auto, sel: S.cartSel, keys: !S.touch };
     return sc;
+  }
+
+  /** Where the run's boards go on this screen. */
+  function runSpots() {
+    const ph = L.phone;
+    const post = { w: ph ? 156 : 200, h: ph ? 56 : 66 };
+    const go = { w: ph ? 150 : 196, h: ph ? 58 : 70 };
+    if (L.portrait) {
+      post.x = 12;
+      post.y = L.rope.y + L.rope.h + 12;
+      go.x = L.W - go.w - 12;
+      go.y = L.cart.y - go.h - 12;
+    } else {
+      post.x = L.W - post.w - 12;
+      post.y = L.dial.y + L.dial.r + 22;
+      const B = L.buttons.drop;
+      go.x = Math.min(L.W - go.w - 14, B.x + B.w - go.w);
+      go.y = B.y + B.h - go.h;
+      // a short screen: the post goes left of the dial
+      if (post.y + post.h > go.y - 70) {
+        post.x = L.dial.x - L.dial.r - post.w - 16;
+        post.y = L.dial.y - post.h / 2;
+      }
+    }
+    return { post, go };
   }
 
   function soloScene(dt, wdt) {
@@ -947,23 +1178,70 @@ async function boot() {
     if (!S.soloPaused) so.update(wdt);
     const sc = soloWorld(so, false, wdt);
     const c = so.c;
-    audio.setMusic(S.soloPaused ? 'menu' : 'play', clamp((sc.needle ?? 0) / sc.band[1], 0, 1));
+    const st = so.st;
+    audio.setMusic(S.soloPaused ? 'menu' : c.step === 'road' ? 'road' : 'play', clamp((sc.needle ?? 0) / sc.band[1], 0, 1));
     // my tag alone: kg delivered (big)
     sc.tags = [{ id: S.me.id, name: so.kind === 'daily' ? 'Daily cart' : S.me.name, seat: 0, kg: c.delivered, me: true, avatar: avatarOf(S.me.id) }];
+    const mine = (!st.auto || autoplay === 'caravan') && !S.soloOver && !S.soloPaused;
     // hints
-    if (!so.st.auto && !S.soloOver) {
-      if (c.step === 'pick') hint('pick', 'Pick one', 'cart');
+    if (mine && !st.auto) {
+      if (c.step === 'pick' && c.load === 0 && c.leg === 1) hint('pick', 'Pick one', 'cart');
       else if (c.step === 'place' && S.hand) placeHints();
+      else if (so.canSetOff && c.mood >= 2 && !S.profile.hints.sweat) hint('sweat', 'Sweating pays ×2', 'setoff');
+      else if (so.canSetOff && !S.profile.hints.setoff) hint('setoff', 'More load, more pay', 'setoff');
+      else if (c.step === 'perk' && !S.profile.hints.perk && S.t >= (S.perkShowAt ?? 0)) hint('perk', 'Take one');
+    }
+    const sign = S.lostSign && S.t >= S.lostSign.at ? { lines: [{ s: 'Load lost', size: L.phone ? 44 : 60, color: PAL.roseDark }, { s: c.patience === 1 ? 'Last chance' : `Patience ${c.patience}`, size: 22, display: false }], at: S.lostSign.at, hold: 9 } : S.townSign && S.t >= S.townSign.at ? S.townSign : null;
+    if (sign && !S.soloOver) {
+      const age = S.t - sign.at;
+      const hold = sign.hold ?? 1.6;
+      if (age < hold + 0.4) sc.sign = { lines: sign.lines, drop: age < hold ? clamp(age / 0.35, 0, 1) : clamp(1 - (age - hold) / 0.35, 0, 1) };
+      else if (sign === S.townSign) S.townSign = null;
     }
     sc.hud.push((ctx) => {
-      // the town signpost: loads to go
-      const left = so.loadsLeft;
-      const r = { x: L.W - (L.phone ? 150 : 190) - 12, y: L.gy - (L.phone ? 54 : 62) - 10, w: L.phone ? 150 : 190, h: L.phone ? 54 : 62 };
-      if (!L.portrait) r.y = L.dial.y + L.dial.r + 22;
-      else r.y = L.cart.y - r.h - 8;
+      drawVeil(ctx, so);
+      const spots = runSpots();
+      S.runSpots = spots;
+      const away = c.step === 'road' || c.step === 'deliver' || c.step === 'perk';
       const B = L.buttons;
-      const underButtons = myPlace() && S.touch && [B.drop, B.ccw, B.cw].some((b) => b.x < r.x + r.w && r.x < b.x + b.w && b.y < r.y + r.h && r.y < b.y + b.h);
-      if (c.step !== 'deliver' && !S.soloOver && !underButtons) signpost(ctx, r, `Town ${c.leg}`, left === 1 ? '1 to town' : `${left} to town`, { color: PAL.bone });
+      const touchButtons = myPlace() && S.touch;
+      const under = (r) => touchButtons && [B.drop, B.ccw, B.cw].some((b) => b.x < r.x + r.w && r.x < b.x + b.w && b.y < r.y + r.h && r.y < b.y + b.h);
+      // the town's post: its order filling up, the twist, the camel's patience
+      if (!S.soloOver && !under(spots.post) && c.step !== 'deliver' && c.step !== 'perk') {
+        const r = spots.post;
+        const order = townOrder(c.leg);
+        const bump = clamp(1 - (S.t - (S.postBumpAt ?? -9)) / 0.35, 0, 1);
+        drawTownPost(ctx, r, { town: c.leg + 1, kg: c.kgLeg, order, t: S.t, bump });
+        const tw = TWISTS[c.twist];
+        const lostAge = S.patienceLostAt != null ? S.t - S.patienceLostAt : null;
+        const shown = c.patience + (lostAge !== null && lostAge < 0 ? 1 : 0);
+        so.maxPatienceSeen = Math.max(so.maxPatienceSeen ?? 0, shown, RUN.patience);
+        drawPatience(ctx, r.x + r.w - 18, r.y + r.h + 26, shown, so.maxPatienceSeen, { t: S.t, lostAge: lostAge !== null && lostAge >= 0 ? lostAge : null, gainAge: S.patienceGainAt != null ? S.t - S.patienceGainAt : null, size: L.phone ? 18 : 22 });
+        if (tw && !away) drawTwistTag(ctx, r.x + 40, r.y + r.h + 14, tw.name, S.t);
+      }
+      // Set off
+      if (mine && (c.step === 'pick' || c.step === 'full') && c.load >= 1 && !under(spots.go)) {
+        const can = so.canSetOff;
+        if (can && !S.goSince) S.goSince = S.t;
+        if (!can) S.goSince = 0;
+        const r = drawSetOff(ctx, spots.go, { can, left: so.loadsLeft, pay: can ? payout(c, c.mood) : null, t: S.t, keys: !S.touch, appear: can ? (S.t - S.goSince) / 0.35 : 1 });
+        if (can) hits.add(r, 'setoff');
+      }
+      // a town: the receipt, then the gifts
+      if (c.step === 'perk' && !S.soloOver && S.perkSince) {
+        ctx.fillStyle = `rgba(28,15,46,${0.32 * clamp((S.t - S.perkSince) / 0.4, 0, 1)})`;
+        ctx.fillRect(0, 0, L.W, L.H);
+      }
+      if (S.receipt && (c.step === 'deliver' || c.step === 'perk') && !S.soloOver) drawReceipt(ctx, so);
+      if (c.step === 'perk' && !S.soloOver && S.t >= (S.perkShowAt ?? 0)) {
+        const top = S.receiptBottom ?? L.rope.y + L.rope.h + 90;
+        const rects = perkRects(L.W, top + 14, Math.min(L.gy + 40, L.H - 20));
+
+        const keys = c.perkOffer;
+        if (!S.perkSince) S.perkSince = S.t;
+        drawPerkCards(ctx, rects, keys, { t: S.t, age: S.t - S.perkSince, sel: S.perkSel, keys: !S.touch && mine, have: keys.map((k) => perkCount(c, k)) });
+        if (mine) rects.forEach((r, i) => hits.add(r, 'perk', i));
+      } else S.perkSince = 0;
       // pause
       if (!S.soloOver) {
         const pr = { x: L.W - 66, y: L.rope.y + L.rope.h + 6, w: 54, h: 50 };
@@ -975,6 +1253,51 @@ async function boot() {
       if (S.soloOver && S.soloBoard && S.t - S.soloOver.at > 0.4) runBoard(ctx, so);
     });
     return sc;
+  }
+
+  /** At a town: the load's kg, what multiplies it, and (once unloaded) what it paid. */
+  function drawReceipt(ctx, so) {
+    const R0 = S.receipt;
+    const pay = R0.pay;
+    if (!pay) return;
+    const compact = so.c.step === 'perk';
+    const big = L.phone ? 34 : 46;
+    const lines = [];
+    const age = S.t - R0.at;
+    if (compact) {
+      lines.push({ s: `Town ${R0.town}  +${pay.total} kg`, size: big * 0.72 });
+      if (pay.short) lines.push({ s: `Short of ${pay.order}`, size: 18, color: PAL.roseDark });
+    } else {
+      lines.push({ s: `Town ${R0.town}`, size: big * 0.62, color: PAL.violet });
+      const rows = [{ s: `${pay.base} kg${pay.mult > 1.001 ? `  ×${pay.mult.toFixed(1)}` : ''}`, size: big * 0.62 }];
+      if (pay.brink > 1) rows.push({ s: `Sweat ×${pay.brink}`, size: big * 0.5, color: PAL.roseDark });
+      if (pay.soft > 0) rows.push({ s: `Soft +${pay.soft}`, size: big * 0.5, color: PAL.goldDark });
+      if (pay.haggle > 1) rows.push({ s: `Haggle ×${pay.haggle.toFixed(2)}`, size: big * 0.5, color: PAL.turqDark });
+      const n = Math.min(rows.length, 1 + Math.floor(age / 0.32));
+      lines.push(...rows.slice(0, n));
+      if (R0.done) lines.push({ s: `+${pay.total} kg`, size: big, color: PAL.ink });
+      if (R0.done && pay.short) lines.push({ s: `Short of ${pay.order}`, size: 18, color: PAL.roseDark });
+      if (n > (R0.shown ?? 0)) {
+        R0.shown = n;
+        audio.tick(false);
+      }
+    }
+    const cy = L.rope.y + L.rope.h + 24;
+    const r = drawSign(ctx, L.W / 2, cy + 60, lines, clamp(age / 0.35, 0, 1), { minW: L.phone ? 200 : 260 });
+    S.receiptAt = { x: L.W / 2, y: r.y + r.h * 0.5 };
+    S.receiptBottom = r.y + r.h;
+  }
+
+  function choosePerk(i) {
+    const so = S.solo;
+    if (!so || so.st.auto || so.step !== 'perk' || S.t < (S.perkShowAt ?? 0) + 0.25) return;
+    if (so.choosePerk(i)) hintDone('perk');
+  }
+
+  function setOff() {
+    const so = S.solo;
+    if (!so || so.st.auto || S.soloPaused || S.soloOver || !so.canSetOff) return;
+    if (so.setOff()) hintDone('setoff');
   }
 
   function pauseBoard(ctx) {
@@ -1037,6 +1360,7 @@ async function boot() {
     doPick,
     doDrop,
     landJuice,
+    smashJuice,
     placeHints,
     baseScene,
     today,
@@ -1091,7 +1415,15 @@ async function boot() {
     if (strain01 > 0.55 && S.screen !== 'title' && Math.random() < dt * strain01 * 0.8) audio.creak(0.03 + strain01 * 0.05);
 
     // the camera
-    const target = fitCamera(L.stage, L.gy, sc.box);
+    // frame the load and whatever is in the hands; push in a little while the camel is in the red
+    const box = { ...sc.box };
+    if (sc.hands?.visible && ITEMS[sc.hands.item]) box.y1 = Math.max(box.y1, sc.hands.y + extents(sc.hands.item, sc.hands.a).maxY + 0.3);
+    const danger = !sc.title && (sc.camel.mood ?? 0) >= 2 ? ((sc.camel.mood ?? 0) - 1) * 0.03 : 0;
+    const target = fitCamera(L.stage, L.gy, box);
+    if (danger) {
+      target.s *= 1 + danger;
+      target.ox = L.stage.x + L.stage.w / 2 - ((box.x0 + box.x1) / 2) * target.s;
+    }
     if (!S.cam || S.cam.W !== L.W || S.cam.H !== L.H) S.cam = { ...target, W: L.W, H: L.H };
     else {
       const k = Math.min(1, dt * 3);
@@ -1162,6 +1494,14 @@ async function boot() {
       S.hint = null;
       return;
     }
+    if ((h.id === 'setoff' || h.id === 'sweat') && !(S.screen === 'solo' && S.solo?.canSetOff)) {
+      S.hint = null;
+      return;
+    }
+    if (h.id === 'perk' && S.solo?.step !== 'perk') {
+      S.hint = null;
+      return;
+    }
     let arrow = null;
     let x = L.center.x, y = L.center.y;
     if (h.arrow === 'cart') {
@@ -1177,6 +1517,11 @@ async function boot() {
       x = L.dial.x - L.dial.r - (L.portrait ? 60 : 110);
       y = L.dial.y + L.dial.r + 26;
       arrow = { x: L.dial.x - L.dial.r * 0.7, y: L.dial.y + L.dial.r * 0.6 };
+    } else if (h.arrow === 'setoff' && S.runSpots) {
+      const g = S.runSpots.go;
+      x = clamp(g.x + g.w / 2 - (L.portrait ? 60 : 160), 110, L.W - 110);
+      y = g.y - (L.portrait ? 110 : 40);
+      arrow = { x: g.x + 10, y: g.y + 6 };
     } else if (h.arrow === 'drop' || h.arrow === 'turn') {
       const b = h.arrow === 'drop' ? L.buttons.drop : L.buttons.ccw;
       x = Math.min(L.W - 100, b.x);

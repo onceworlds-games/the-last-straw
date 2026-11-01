@@ -698,7 +698,7 @@ function drawBirds(ctx, W, hy, t, sky, night) {
 function drawFarCaravan(ctx, W, t, ridge, col, s, scroll) {
   const speed = 6; // px per second
   const span = W * 1.8;
-  const head = W * 1.25 - ((t * speed + scroll * s * 0.1) % span);
+  const head = W * 1.25 - ((((t * speed + scroll * s * 0.1) % span) + span) % span);
   ctx.fillStyle = col;
   ctx.strokeStyle = col;
   const scale = Math.max(0.7, Math.min(1.3, W / 1280));

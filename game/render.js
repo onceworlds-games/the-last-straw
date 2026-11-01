@@ -3,7 +3,7 @@
 // soft shadow across the sand, shade each other where they touch and catch the low sun on their edges; then the hands, the
 // ghost, the foreground and the grade. Metres with y up; the camera maps them to the screen.
 
-import { drawItem, drawHands } from './art.js';
+import { drawItem, drawHands, drawCatWalking } from './art.js';
 import { PAL, BIOMES, skyAt, mix, rgba } from './look.js';
 import { drawCamel, foldPose } from './camel.js';
 import { createBackdrop } from './backdrop.js';
@@ -778,7 +778,8 @@ function placeItem(ctx, lw, it, shade) {
   ctx.translate(it.x, it.y);
   ctx.rotate(it.a);
   if (it.sx || it.sy) ctx.scale(1 + (it.sx ?? 0), 1 + (it.sy ?? 0));
-  drawItem(ctx, it.item, lw, { flash: it.flash, outline: it.outline, angle: it.a });
+  if (it.walking) drawCatWalking(ctx, lw, it.x * 26, it.dir ?? 1);
+  else drawItem(ctx, it.item, lw, { flash: it.flash, outline: it.outline, angle: it.a });
   ctx.restore();
 }
 

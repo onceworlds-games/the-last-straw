@@ -643,7 +643,240 @@ function build() {
       ctx.stroke();
     },
   };
+  A.hay = {
+    base: '#E9C25A', shade: '#BF9230',
+    body: rr(P(), -0.45, -0.21, 0.9, 0.42, 0.07),
+    deco(ctx, lw) {
+      // straw ends and stalks, two twine bands
+      ctx.strokeStyle = 'rgba(150,104,30,0.7)';
+      ctx.lineWidth = lw * 1.2;
+      ctx.beginPath();
+      for (let k = 0; k < 26; k++) {
+        const x = -0.42 + (k / 25) * 0.84;
+        const y0 = -0.18 + ((k * 37) % 7) * 0.012;
+        ctx.moveTo(x, y0);
+        ctx.lineTo(x + 0.03 + ((k * 13) % 5) * 0.006, y0 + 0.3 + ((k * 7) % 4) * 0.01);
+      }
+      ctx.stroke();
+      ctx.strokeStyle = 'rgba(255,236,160,0.75)';
+      ctx.beginPath();
+      for (let k = 0; k < 14; k++) {
+        const x = -0.4 + (k / 13) * 0.8;
+        ctx.moveTo(x, 0.12);
+        ctx.lineTo(x + 0.05, 0.2);
+      }
+      ctx.stroke();
+      for (const x of [-0.2, 0.2]) {
+        ctx.fillStyle = '#A3442E';
+        ctx.fillRect(x - 0.025, -0.21, 0.05, 0.42);
+        ctx.strokeStyle = PAL.ink;
+        ctx.lineWidth = lw;
+        ctx.strokeRect(x - 0.025, -0.21, 0.05, 0.42);
+      }
+      // stray stalks sticking out of the top
+      ctx.strokeStyle = '#BF9230';
+      ctx.lineWidth = lw * 1.4;
+      ctx.beginPath();
+      ctx.moveTo(-0.32, 0.2);
+      ctx.lineTo(-0.36, 0.27);
+      ctx.moveTo(0.06, 0.21);
+      ctx.lineTo(0.1, 0.29);
+      ctx.moveTo(0.36, 0.2);
+      ctx.lineTo(0.42, 0.25);
+      ctx.stroke();
+    },
+  };
+  A.vase = {
+    base: '#F4F1FF', shade: '#C9C2E6',
+    body: (() => {
+      const p = P();
+      p.moveTo(-0.07, 0.29);
+      p.bezierCurveTo(-0.07, 0.2, -0.06, 0.12, -0.1, 0.07);
+      p.bezierCurveTo(-0.22, -0.02, -0.2, -0.24, -0.1, -0.29);
+      p.lineTo(-0.11, -0.33);
+      p.lineTo(0.11, -0.33);
+      p.lineTo(0.1, -0.29);
+      p.bezierCurveTo(0.2, -0.24, 0.22, -0.02, 0.1, 0.07);
+      p.bezierCurveTo(0.06, 0.12, 0.07, 0.2, 0.07, 0.29);
+      p.lineTo(0.1, 0.33);
+      p.lineTo(-0.1, 0.33);
+      p.closePath();
+      return p;
+    })(),
+    deco(ctx, lw) {
+      // blue-and-white: a band, a vine and a flower
+      ctx.strokeStyle = '#2E4FA8';
+      ctx.lineWidth = lw * 2.2;
+      ctx.beginPath();
+      ctx.moveTo(-0.16, -0.2);
+      ctx.lineTo(0.16, -0.2);
+      ctx.moveTo(-0.075, 0.24);
+      ctx.lineTo(0.075, 0.24);
+      ctx.stroke();
+      ctx.lineWidth = lw * 1.6;
+      ctx.beginPath();
+      ctx.moveTo(-0.17, -0.1);
+      ctx.bezierCurveTo(-0.08, -0.02, -0.02, -0.16, 0.06, -0.06);
+      ctx.bezierCurveTo(0.1, -0.01, 0.14, -0.05, 0.17, -0.02);
+      ctx.stroke();
+      ctx.fillStyle = '#2E4FA8';
+      for (let k = 0; k < 5; k++) {
+        const a = (k / 5) * Math.PI * 2;
+        ctx.beginPath();
+        ctx.ellipse(-0.02 + Math.cos(a) * 0.035, 0.0 + Math.sin(a) * 0.035, 0.026, 0.016, a, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.fillStyle = PAL.gold;
+      ctx.beginPath();
+      ctx.arc(-0.02, 0.0, 0.018, 0, Math.PI * 2);
+      ctx.fill();
+    },
+  };
+  A.cat = {
+    base: '#F0A04B', shade: '#C26F2A',
+    // a loaf: curled up, tail around, head tucked (the walking pose is drawn by drawCat)
+    body: (() => {
+      const p = P();
+      p.moveTo(-0.27, -0.15);
+      p.lineTo(0.25, -0.15);
+      p.bezierCurveTo(0.31, -0.15, 0.3, 0.06, 0.2, 0.09);
+      p.bezierCurveTo(0.08, 0.12, -0.04, 0.11, -0.12, 0.08);
+      // the head with two ears
+      p.bezierCurveTo(-0.14, 0.12, -0.16, 0.17, -0.17, 0.19);
+      p.lineTo(-0.2, 0.13);
+      p.lineTo(-0.25, 0.13);
+      p.lineTo(-0.29, 0.19);
+      p.bezierCurveTo(-0.33, 0.12, -0.34, 0.04, -0.31, -0.02);
+      p.bezierCurveTo(-0.33, -0.08, -0.31, -0.15, -0.27, -0.15);
+      p.closePath();
+      return p;
+    })(),
+    deco(ctx, lw) {
+      // stripes, a white chest, closed eyes, the tail wrapped round the front
+      ctx.strokeStyle = '#B85C1E';
+      ctx.lineWidth = lw * 2.2;
+      ctx.beginPath();
+      for (const x of [-0.02, 0.07, 0.16]) {
+        ctx.moveTo(x, 0.1);
+        ctx.quadraticCurveTo(x + 0.03, 0.02, x + 0.01, -0.04);
+      }
+      ctx.stroke();
+      ctx.fillStyle = '#FFF0D9';
+      ctx.beginPath();
+      ctx.ellipse(-0.2, -0.07, 0.08, 0.07, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = PAL.ink;
+      ctx.lineWidth = lw * 1.5;
+      ctx.beginPath();
+      ctx.moveTo(-0.29, 0.06);
+      ctx.quadraticCurveTo(-0.275, 0.045, -0.26, 0.06);
+      ctx.moveTo(-0.22, 0.06);
+      ctx.quadraticCurveTo(-0.205, 0.045, -0.19, 0.06);
+      ctx.stroke();
+      ctx.fillStyle = '#E26B7A';
+      ctx.beginPath();
+      ctx.moveTo(-0.245, 0.03);
+      ctx.lineTo(-0.235, 0.02);
+      ctx.lineTo(-0.225, 0.03);
+      ctx.fill();
+      ctx.strokeStyle = '#C26F2A';
+      ctx.lineWidth = lw * 5;
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(0.24, -0.12);
+      ctx.quadraticCurveTo(0.05, -0.2, -0.12, -0.13);
+      ctx.stroke();
+      ctx.strokeStyle = PAL.ink;
+      ctx.lineWidth = lw * 1.2;
+      ctx.stroke();
+    },
+  };
   return ITEMS.map((it) => A[it.key]);
+}
+
+/**
+ * The cat on the move (the newest cat while it strolls): legs stepping with the distance walked, tail up.
+ * Drawn at the item's transform like drawItem; `phase` advances with x.
+ */
+export function drawCatWalking(ctx, lw, phase, dir = 1) {
+  ctx.save();
+  ctx.scale(dir < 0 ? -1 : 1, 1);
+  const base = '#F0A04B', shade = '#C26F2A', ink = PAL.ink;
+  ctx.lineJoin = 'round';
+  ctx.lineCap = 'round';
+  // legs: two pairs, stepping
+  for (const [hx, ph, far] of [[-0.16, 0, 1], [0.16, Math.PI, 1], [-0.12, Math.PI, 0], [0.2, 0, 0]]) {
+    const sw = Math.sin(phase + ph) * 0.05;
+    const lift = Math.max(0, Math.cos(phase + ph)) * 0.025;
+    ctx.strokeStyle = ink;
+    ctx.lineWidth = lw * 7;
+    ctx.beginPath();
+    ctx.moveTo(hx, -0.04);
+    ctx.lineTo(hx + sw, -0.15 + lift);
+    ctx.stroke();
+    ctx.strokeStyle = far ? shade : base;
+    ctx.lineWidth = lw * 4.6;
+    ctx.stroke();
+  }
+  // tail up with a curl
+  ctx.strokeStyle = ink;
+  ctx.lineWidth = lw * 6.4;
+  ctx.beginPath();
+  ctx.moveTo(0.24, 0.02);
+  ctx.bezierCurveTo(0.34, 0.08, 0.3, 0.26 + Math.sin(phase * 0.5) * 0.02, 0.36, 0.3);
+  ctx.stroke();
+  ctx.strokeStyle = base;
+  ctx.lineWidth = lw * 4;
+  ctx.stroke();
+  // body
+  const b = new Path2D();
+  b.moveTo(-0.22, -0.06);
+  b.bezierCurveTo(-0.22, 0.08, 0.2, 0.09, 0.26, 0.03);
+  b.bezierCurveTo(0.3, -0.02, 0.26, -0.08, 0.2, -0.08);
+  b.lineTo(-0.18, -0.08);
+  b.closePath();
+  ctx.fillStyle = base;
+  ctx.fill(b);
+  ctx.strokeStyle = '#B85C1E';
+  ctx.lineWidth = lw * 2;
+  ctx.save();
+  ctx.clip(b);
+  ctx.beginPath();
+  for (const x of [-0.05, 0.05, 0.15]) {
+    ctx.moveTo(x, 0.1);
+    ctx.lineTo(x + 0.02, -0.02);
+  }
+  ctx.stroke();
+  ctx.restore();
+  ctx.strokeStyle = ink;
+  ctx.lineWidth = lw * 2;
+  ctx.stroke(b);
+  // head, ears, open eyes looking ahead
+  const h = new Path2D();
+  h.moveTo(-0.33, 0.06);
+  h.bezierCurveTo(-0.36, 0.14, -0.3, 0.17, -0.3, 0.17);
+  h.lineTo(-0.28, 0.24);
+  h.lineTo(-0.24, 0.18);
+  h.lineTo(-0.19, 0.18);
+  h.lineTo(-0.15, 0.24);
+  h.lineTo(-0.14, 0.15);
+  h.bezierCurveTo(-0.1, 0.1, -0.12, 0.02, -0.2, 0.01);
+  h.bezierCurveTo(-0.28, 0.0, -0.32, 0.02, -0.33, 0.06);
+  h.closePath();
+  ctx.fillStyle = base;
+  ctx.fill(h);
+  ctx.stroke(h);
+  ctx.fillStyle = '#FFF0D9';
+  ctx.beginPath();
+  ctx.ellipse(-0.24, 0.05, 0.055, 0.035, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = ink;
+  for (const x of [-0.27, -0.2]) {
+    ctx.beginPath();
+    ctx.ellipse(x, 0.11, 0.014, 0.022, 0, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.restore();
 }
 
 let ART = null;
@@ -713,7 +946,7 @@ export function drawItem(ctx, i, lw, opts = {}) {
 // ---------------------------------------------------------------- material and light
 
 const METAL = new Set(['copper', 'brass', 'iron', 'tin']);
-const GLOSS = new Set(['enamel', 'ceramic', 'rubber', 'melon', 'clock', 'leather', 'glass']);
+const GLOSS = new Set(['enamel', 'ceramic', 'rubber', 'melon', 'clock', 'leather', 'glass', 'porcelain']);
 const GRAIN = new Set(['wood', 'clock']);
 const SOFT = new Set(['cloth', 'straw', 'fur', 'hay']);
 const SHEEN = { copper: '#FFD9B0', brass: '#FFF6C8', iron: '#B9B4E8', tin: '#F4F0FF' };
