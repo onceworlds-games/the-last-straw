@@ -198,3 +198,21 @@ test('balance: an animal-played Caravan run gets past the first towns, pays, and
   }
   assert.ok(Math.max(...towns) >= 3, `towns reached: ${towns}`);
 });
+
+test('a load that ends on a break stays down under its heap once it is over (no standing camel with the load back on)', async () => {
+  const { createSolo } = await import('../game/solo.js');
+  let checked = 0;
+  for (const seed of ['demo:t6', 'demo:t9', 'demo:t13', 'demo:t15']) {
+    let done = null;
+    const so = createSolo({ seed, kind: 'demo', auto: true, onEvent: (type, d) => (type === 'done' ? (done = d.kind) : null) });
+    for (let t = 0; t < 90 && !done; t += 1 / 30) so.update(1 / 30);
+    if (done !== 'broke') continue;
+    for (let i = 0; i < 30; i++) so.update(1 / 30);
+    const v = so.view();
+    assert.equal(v.fold, 1, seed);
+    assert.ok(v.knocked, seed);
+    checked++;
+    break;
+  }
+  assert.equal(checked, 1, 'one of the loads broke the camel');
+});

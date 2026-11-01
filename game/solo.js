@@ -251,12 +251,13 @@ export function createSolo({ seed, kind = 'caravan', auto = false, onEvent = () 
         }
       }
       if (b.t >= (b.kind === 'broke' ? 2.6 : 2.2)) {
-        st.beat = null;
-        st.prev = null;
         if (demo || c.step === 'over') {
+          // the end stays on screen as it fell (the camel down under its load) while the board or the next load comes
           st.done = true;
           onEvent('done', { kind: b.kind });
         } else {
+          st.beat = null;
+          st.prev = null;
           caravanRestart(c);
           st.stand = b.kind === 'broke' ? 1 : 0;
           st.scroll = 0;

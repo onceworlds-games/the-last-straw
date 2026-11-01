@@ -1056,10 +1056,13 @@ async function boot() {
 
   let last = performance.now();
   let L = null;
-  function frame(ts) {
+  function frame() {
     requestAnimationFrame(frame);
-    const dt = clamp((ts - last) / 1000, 0, 0.05);
-    last = ts;
+    // the page's own clock, not the frame's timestamp: some hosts (headless captures, throttled frames) run that one at
+    // another rate than timers and the network, and the solo runs, the match's playback and the sound must agree
+    const now = performance.now();
+    const dt = clamp((now - last) / 1000, 0, 0.05);
+    last = now;
     safe(() => tick(dt));
   }
   requestAnimationFrame(frame);
@@ -1273,7 +1276,9 @@ async function boot() {
     const place = BIOMES[c.twist === 'night' ? 'night' : biomeFor(c.leg)]?.name ?? '';
     const lines = [{ s: `Town ${c.leg}`, size: big * 0.45, color: PAL.violet }, { s: place, size: big }];
     const tw = TWISTS[c.twist];
-    if (tw) lines.push({ s: tw.name, size: big * 0.6, color: PAL.roseDark }, { s: tw.line, size: 20, display: false });
+    // the night market is both the place and its twist: its name once
+    if (tw && tw.name !== place) lines.push({ s: tw.name, size: big * 0.6, color: PAL.roseDark });
+    if (tw) lines.push({ s: tw.line, size: 20, display: false });
     S.townSign = { at, lines, hold: tw ? 2.2 : 1.4 };
     if (tw) setTimeout(() => audio.brass([392, 523.3]), Math.max(0, (at - S.t) * 1000));
   }
