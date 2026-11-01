@@ -290,7 +290,8 @@ bone signboards.
   the teapot" / "THE LAST STRAW" (straw breaks get the big words), with the culprit's tag cracking and "0" stamped on it;
   every other tag's "+kg" counts up into its total.
 - **Between rounds** (2 s): the camel gets up hind legs first and shakes off sand; "Round 2" on the sign; a lantern lights.
-- **Results**: the camel lying in front of the whole match's junk heaped on the sand, the last item on the peak with the
+- **Results**: the camel lying in front of the whole match's junk heaped on the sand (each item resting on its own edges on
+  what is under it), the last item on the peak with the
   winner's avatar (or animal) on it wearing the golden straw like a crown; "Ann wins" on a sign; tags hang 1st to 6th with
   total kg; straw confetti and a fanfare. Public: a sand bar runs 25 s back to the lobby. Private: the host's "Back to
   lobby" slab; everyone else sees "Waiting for" the host.
@@ -338,7 +339,8 @@ the winner's crown, and the straw in the camel's mouth on the icon. A straw that
 
 **Light and camera:** the sun sits low on the left, sinking a little each round (round 3 is a sliver; stars come out). Every
 shape is lit gold on its left edge and violet-shadowed on its lower right; the camel and its load cast one long sheared
-shadow across the sand to the right. Orthographic side view; the camera eases to fit the camel, the load and the hover zone;
+shadow across the sand to the right. Orthographic side view; the camera eases to fit the camel, the load and the hover zone
+(the hover zone stays in frame all round, so the camera only eases out as the load grows and never pumps between turns);
 dunes parallax at 15/35/60%; camera shake from decaying trauma² on landings (scaled by kg) and the break.
 
 **The camel:** a dromedary facing the cart, heavy-lidded, always chewing, with a striped pack rug and a wooden saddle tray. Its
@@ -421,6 +423,8 @@ with its license, imported by relative path so node tests use the same file.
 - `game/scene.js` one frame from a scene description (the game and the posters); `game/render.js` sky, dunes, weighbridge,
   tray and shadows; `game/camel.js`; `game/art.js` items, hands, portraits; `game/ui.js` tags, dial, cart, signs, slabs;
   `game/fx.js`; `game/audio.js`; `game/poster.js` store art.
+- Captures only (never in production): `?autoplay=1` plays this page's turns with the animals' brain (`autoplay=caravan` a
+  Caravan run), and `&rounds=1` asks for a shorter match.
 - Canvas at `ow.settings.pixelRatio(2)`, flat fills drawn every frame; physics only where it runs (host, the placer's
   prediction, solo, attract); audio suspends and solo runs pause on `visibilitychange`.
 
