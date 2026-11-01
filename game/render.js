@@ -231,9 +231,9 @@ function drawWeighbridge(ctx, lw, scroll) {
   ctx.stroke(p);
   ctx.lineWidth = lw * 1.2;
   ctx.beginPath();
-  for (let x = -0.3; x <= 0.3; x += 0.06) {
-    ctx.moveTo(x, -0.07);
-    ctx.lineTo(x, x % 0.3 === 0 ? -0.13 : -0.1);
+  for (let k = -5; k <= 5; k++) {
+    ctx.moveTo(k * 0.06, -0.07);
+    ctx.lineTo(k * 0.06, k % 5 === 0 ? -0.13 : -0.1);
   }
   ctx.stroke();
   ctx.restore();

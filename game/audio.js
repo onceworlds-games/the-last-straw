@@ -51,8 +51,8 @@ export const ready = () => !!ac && ac.state === 'running';
 export function suspend(on) {
   if (!ac) return;
   try {
-    if (on) ac.suspend();
-    else ac.resume();
+    const p = on ? ac.suspend() : ac.resume();
+    p?.catch?.(() => {});
   } catch {}
 }
 
@@ -269,6 +269,8 @@ function schedule() {
   const stepT = 60 / bpm / 4;
   const play = music.mode === 'play';
   const vol = play ? 1 : 0.5;
+  // a late timer (a busy or background page) skips the missed steps instead of playing them all at once
+  if (music.next < ac.currentTime - 0.05) music.next = ac.currentTime + 0.02;
   while (music.next < ac.currentTime + 0.12) {
     const t = music.next;
     const s = music.step % 32;

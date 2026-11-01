@@ -817,6 +817,12 @@ function drawBoard(ctx, R, rows, awY, bedY) {
 
 /** A board hanging on two ropes, dropped in with `drop` (0 up out of sight, 1 in place). lines: [{ s, size, color }]. */
 export function drawSign(ctx, cx, cy, lines, drop = 1, o = {}) {
+  // never wider than the screen: a long name shrinks the lines
+  const maxW = o.maxW ?? ctx.canvas.width / (ctx.getTransform?.().a || 1) - 24;
+  let widest = 0;
+  for (const l of lines) widest = Math.max(widest, textWidth(ctx, l.s, l.size, { display: l.display !== false, weight: 900 }));
+  const k = Math.min(1, (maxW - 48) / Math.max(1, widest));
+  if (k < 1) lines = lines.map((l) => ({ ...l, size: l.size * k }));
   let w = 0;
   let h = 18;
   for (const l of lines) {
