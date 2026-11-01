@@ -237,15 +237,28 @@ export function createNet(room, lib, hooks = {}) {
     let b = botMem.get(k);
     if (!b) {
       const rng = createRng(`${seed()}:bot:${k}`);
-      b = { rng, pickAt: now + (900 + rng.next() * 1300) * persona.pace, planner: null, plan: null, dropAt: 0, drop: null, early: rng.chance(persona.jitter) };
+      b = { rng, pickAt: now + (700 + rng.next() * 900) * persona.pace, planner: null, plan: null, dropAt: 0, drop: null, early: rng.chance(persona.jitter) };
       botMem.set(k, b);
       for (const key of botMem.keys()) if (key !== k) botMem.delete(key);
     }
     if (d.step === 'pick') {
-      if (now >= b.pickAt) host.callAs({ id: seat.id, name: seat.name }, 'pick', { k, i: botPick({ persona, skill: seat.skill, offer: d.offer, S: d.S / 10, mood: d.mood, rng: b.rng }) });
+      // it decides at once and starts planning where to put it while it looks the cart over
+      if (b.choice === undefined) {
+        b.choice = botPick({ persona, skill: seat.skill, offer: d.offer, S: d.S / 10, mood: d.mood, rng: b.rng });
+        b.planner = createPlanner({ snap: d.snap, item: d.offer[b.choice], persona, skill: seat.skill, rng: b.rng });
+      }
+      const end = performance.now() + 6;
+      while (!b.plan && performance.now() < end) b.plan = b.planner.work(1);
+      if (now >= b.pickAt) host.callAs({ id: seat.id, name: seat.name }, 'pick', { k, i: b.choice });
       return;
     }
-    // place: plan (spread over ticks), then carry, then let go
+    // place: plan (spread over ticks; most of it was done over the pick), then carry, then let go
+    if (b.choice !== d.pick) {
+      // (a new host, or a pick it didn't make: plan afresh)
+      b.choice = d.pick;
+      b.plan = null;
+      b.planner = null;
+    }
     if (!b.plan) {
       if (!b.planner) b.planner = createPlanner({ snap: d.snap, item: heldItem(d), persona, skill: seat.skill, rng: b.rng });
       const end = performance.now() + 7;

@@ -55,7 +55,7 @@ function candidates(item, snap, skill, persona, rng) {
   const xs = [];
   for (let x = -1.1; x <= 1.1001; x += 0.1) xs.push(Math.round(x * 100) / 100);
   xs.sort((p, q) => Math.abs(p - cx * 0.5) - Math.abs(q - cx * 0.5));
-  const want = Math.round(8 + 16 * skill);
+  const want = Math.round(7 + 12 * skill);
   const out = [];
   for (const x of xs) for (const a of angles) out.push({ x, a: wrapAngle(a) });
   // keep the nearest ones plus a few random far ones
@@ -76,8 +76,8 @@ function trySpot(snap, item, x, a, h) {
   const ni = sim.addItem(item, x, y, a);
   let fell = false;
   // set down, then a short taste of the camel's weight shift (what makes top-heavy piles go)
-  for (let s = 0; s < 100; s++) {
-    if (s === 55) {
+  for (let s = 0; s < 84; s++) {
+    if (s === 46) {
       sim.motionT = 0;
       sim.motion = shiftMotion(sim.strain().M);
     }
@@ -162,7 +162,7 @@ export function createPlanner({ snap, item, persona, skill = 0.5, rng }) {
  * overshoot (and a nervous animal's jiggle). Returns { path, dropAt }.
  */
 export function carryPath({ from, to, persona, rng, t0, early = false }) {
-  const dur = (1200 + rng.next() * 900) * persona.pace;
+  const dur = (1000 + rng.next() * 700) * persona.pace;
   const pts = [[t0, from.x, from.y, from.a]];
   const over = 0.12 + rng.next() * 0.1;
   const dx = to.x - from.x;
