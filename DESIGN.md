@@ -20,8 +20,7 @@ Genre: Party. 2D side view. 1-6 players, bots in empty seats.
 3. **Caravan has towns.** Solo score attack: load, walk, deliver the load at the next town, go on with a tired camel. Kg
    delivered is the score; one failure ends the run. This makes the solo mode a skill climb rather than one random limit.
 4. **Daily cart** is a Caravan run on the day's seed (same items and limits for everyone). The first run of the day counts.
-   The platform keeps no daily boards, so the `daily` board stores `yyyymmdd * 100000 + kg`: today's runs outrank every
-   older one, and the game shows only today's.
+   Platform leaderboards keep a best-ever, so today's board is a small shared list in `ow.data.game` (see Progression).
 5. **Bots are desert animals** (Fennec, Tortoise, Vulture, Gecko, Jerboa) with habits of their own, not people.
 6. **Mouse:** the held item follows the pointer and a click drops it (no holding a button while aiming). Touch: drag
    anywhere to move it (it moves with the finger, never under it), buttons to turn it, a Drop button.
@@ -34,8 +33,9 @@ Genre: Party. 2D side view. 1-6 players, bots in empty seats.
 - Your item rises into your hands above the camel. Move it, turn it in 15° steps, drop it. A ghost outline shows where it
   first touches. It falls, lands, slides, settles; then the camel shifts its weight (a short sway toward the heavier side).
 - **Your turn ends the round if** anything touches the sand (or the weighbridge) before the load settles, or the camel's
-  strain passes its breaking point. Then: you score 0 kg for this round; everyone else keeps the kg of every item they
-  placed this round.
+  strain passes its breaking point. Both count as "you broke it": you score 0 kg for this round; everyone else keeps the kg
+  of every item they placed this round. Either way the cause plays out on screen: the item that fell tumbles in slow motion
+  with an outline and lands in a puff of sand, or the crack runs along the back; then your name and the item on the sign.
 - Otherwise your item's kg is yours (it shows as "+8" flying to your tag) and the next player goes.
 - After the last round, most kg wins (ties share a place).
 - The hourglass: 15 s per turn (host: 10 / 15 / 25 s), from the moment the cart stops. At 0 the cart picks the left item
@@ -68,9 +68,9 @@ point is drawn from the upper half of the red.
 | Turn | Q / E, or the mouse wheel (15° a step) | Platform buttons ↺ and ↻ |
 | Drop | Click, or Space / Enter | Platform button Drop (the biggest); lifting a finger never drops |
 
-Touch controls: `ow.controls.set({ buttons: [{ id: 'drop', label: 'Drop', key: ' ' }, { id: 'ccw', label: '↺', key: 'q' },
-{ id: 'cw', label: '↻', key: 'e' }] })` only while it is your place step; `null` on every other screen. No stick.
-`onceworlds.json` `controls` lists all of the above.
+Touch buttons are the game's own (wooden slabs, Drop 72 px, ↺ and ↻ 64 px, 12 px apart), shown only during your place
+step, in the lower right and laid out around every rectangle in `ow.ui.reserved`. The two pick targets are at least 120 px.
+`ow.controls.set(null)` everywhere: no stick. `onceworlds.json` `controls` lists all of the above.
 
 ## The core loop, and where mastery comes from
 
@@ -143,9 +143,10 @@ The host's page decides everything; every other page draws it.
   writes `drop` and `t0` at once, then `verdict` and `final`, and sends the motion as 15 Hz keyframes (bodies that moved,
   plus the dial's strain) in 2-3 messages. Every page plays the keyframes on the match clock, 150 ms behind. At
   `t0 + duration` the host applies the verdict: next turn, or `endRound(kg)`.
-- **The placer doesn't wait**: its page runs the same simulation locally from the same `snap` the instant it drops, and eases
-  onto the host's keyframes only if they disagree by more than 2 cm or 2° (they match whenever both pages run the same
-  browser engine). The verdict is always the host's.
+- **The placer doesn't wait**: its page runs the same simulation locally from the same `snap` the instant it drops, step for
+  step on the same timeline as the keyframes. As the host's keyframes arrive it blends from its own bodies to the host's at
+  the same step over 0.3 s (no time shift, so no jump; when both pages run the same browser engine they are identical). The
+  verdict and the settled load are always the host's. No other page ever simulates a settle.
 - **Bots' hands**: the host writes a bot's carry as a short eased path with match-clock times in `match.data`; every page
   animates the same path, and the host drops at its end.
 - **After a break** the collapse is cosmetic: each page tumbles the junk with its own local physics.
@@ -155,7 +156,11 @@ The host's page decides everything; every other page draws it.
 
 - **Bests** (`ow.save` key `profile`): matches won, Caravan best (kg and town), lifetime kg delivered, dailies finished,
   first-round hints seen, sleeves unlocked and chosen. Key `daily`: `{ day, kg, town }`.
-- **Leaderboards**: `wins` (matches won), `caravan` (best kg in one run), `daily` (encoded as above).
+- **Leaderboards**: `wins` (matches won), `caravan` (best kg in one run).
+- **Today's board**: `ow.data.game` list `daily` (`max: 100, bytes: 64`). A player pushes `{ d: dayNumber, kg, t: town }`
+  only when a scored daily run beats their own best for today (so at most a few writes a day). Readers keep entries whose `d`
+  is today, whose numbers are integers in range, and whose kg is possible for that town (at most 10 loads × 18 kg per leg),
+  the best per player, top 10. On the device: today's best and the all-time Caravan best.
 - **Sleeves** (cosmetic, the hands everyone sees when you place): Plain; Stripes (win a match); Checks (reach town 3);
   Stars (3 dailies); Zigzag (10 wins); Gold (Steady Hand). Tap your own tag in the lobby to change.
 - **Badges** (256 px discs):
@@ -209,7 +214,9 @@ Hover box: x within ±1.5 m of the saddle centre; height from 0.2 m to 1.6 m abo
 
 **Strain** S = Σ(kg + 2) + 1.5 × |Σ kg × x| + impact, with x from the saddle centre and impact = 0.1 × kg × landing speed at
 first contact, fading with a 0.25 s time constant. The dial runs 0-100; the red band is 70-100; the breaking point is drawn
-uniformly in 70-100 (round 1: 85-100). Checked every physics step during the settle: a spike can break it.
+uniformly in 70-100 (round 1: 85-100), always inside the band the dial shows. Checked every physics step during the
+settle: a spike can break it. The needle follows the keyframes' strain during a settle (spring, slight overshoot) and eases
+to the settled value after every turn.
 
 **Settle**: until every body is below 0.03 m/s and 0.06 rad/s for 15 steps (at most 3 s); then the weight shift: the saddle
 tilts toward the heavy side, `A · sin(2πt / 0.9 s) · e^(-t / 0.5 s)` for 1.2 s with `A = min(0.07, 0.012 + 0.0035 × |Σ kg × x|)`
