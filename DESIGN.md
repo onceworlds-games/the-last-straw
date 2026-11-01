@@ -17,13 +17,20 @@ Genre: Party. 2D side view. 1-6 players, bots in empty seats.
 2. **Every item strains the camel, even a straw.** Strain = weight + 2 per item + off-centre load + landing impact. The
    straw weighs "1 g" and scores 0, but its +2 can be the one that breaks it (in bot rounds about a quarter of all breaks
    are a straw's).
-3. **Caravan has towns.** Solo score attack: load, walk, deliver the load at the next town, go on with a tired camel. Kg
-   delivered is the score; one failure ends the run. This makes the solo mode a skill climb rather than one random limit.
-4. **Daily cart** is a Caravan run on the day's seed (same items and limits for everyone). The first run of the day counts.
-   Platform leaderboards keep a best-ever, so today's board is a small shared list in `ow.data.game` (see Progression); the
-   score itself is the plain kg.
-5. **Bots are desert animals** (Fennec, Tortoise, Vulture, Gecko, Jerboa) with habits of their own, not people.
-6. **Mouse:** the held item follows the pointer and a click drops it (no holding a button while aiming). Touch: drag
+3. **Caravan is a run you build.** Load as much as you dare at a town, then **Set off**: the load's pay multiplies with
+   every extra item and doubles if you leave with the camel sweating; the road may shake it off. Every town wants more and
+   gives one of three gifts (perks). A lost load costs one of the camel's patience; when it runs out the camel quits.
+   Push your luck, read the camel, build a run.
+4. **Daily cart** is a Caravan run on the day's seed (same items, twists and gifts for everyone). The first run of the day
+   counts. Platform leaderboards keep a best-ever, so today's board is a small shared list in `ow.data.game` (see
+   Progression); the score itself is the plain kg.
+5. **How you set it down matters.** A slow, low landing is *soft* and pays a bonus that grows with soft landings in a
+   row; some items have a mechanic of their own (a vase smashes when dropped hard, a cat strolls along the load, a hay
+   bale is a wide base); from round 2 every round has a twist. Mastery you can see on every turn.
+6. **You keep something between visits**: levels, a Stable of camel coats, blankets, hats and sleeves earned by playing,
+   three goals a day and a streak.
+7. **Bots are desert animals** (Fennec, Tortoise, Vulture, Gecko, Jerboa) with habits of their own, not people.
+8. **Mouse:** the held item follows the pointer and a click drops it (no holding a button while aiming). Touch: drag
    anywhere to move it (it moves with the finger, never under it), buttons to turn it, a Drop button.
 
 ## The rules (all of them)
@@ -38,6 +45,14 @@ Genre: Party. 2D side view. 1-6 players, bots in empty seats.
   of every item they placed this round. Either way the cause plays out on screen: the item that fell tumbles in slow motion
   with an outline and lands in a puff of sand, or the crack runs along the back; then your name and the item on the sign.
 - Otherwise your item's kg is yours (it shows as "+8" flying to your tag) and the next player goes.
+- **Soft landing**: first touch slower than 2.3 m/s (a set-down, not a drop) is soft: "+1", then "+2", "+3" for soft
+  landings in a row by the same player (a hard landing resets it). Gold rings and a chime mark it.
+- **Special items**: the **vase** (3 kg, from town 3 / any round) smashes when it lands faster than 2.7 m/s: it scores
+  nothing, its shards fly, and the round goes on. The **cat** (4 kg, from town 4) strolls along the load after it lands,
+  then curls up (it can walk itself off). The **hay bale** (from town 2) is a wide, soft base.
+- **Twists** (round 2 on, never the same twice in a row; the name hangs on a sign): *Gusty* (wind pushes everything one
+  way), *Wobbly* (the camel fidgets under the load), *Heavy cart* (big items come up more), *Night market* (every kg counts
+  twice).
 - After the last round, most kg wins (ties share a place).
 - The hourglass: 15 s per turn (host: 10 / 15 / 25 s), from the moment the cart stops. At 0 the cart picks the left item
   for you, and your hands open wherever they are.
@@ -97,13 +112,18 @@ Pick (2 s) → aim and drop (5 s) → watch it settle and the camel sway (3 s) �
 A player alone gets all of it from the same lobby:
 - **Versus the market** (the match): Ready, and bots fill the empty seats (host setting: Bots Off / to 4 / to 6; alone with
   Off still seats one bot). A 3-round match against 3 animals is about 5 minutes.
-- **Caravan** (signpost in the lobby): score attack. Legs of 5, 6, 7 ... up to 10 loads; between loads the camel walks three
-  steps (the load sways), at the end of a leg it walks into a town (a longer, bumpier walk) and the load is delivered
-  (lifted off, "+kg" each). Each town the camel is 4% weaker. No hourglass. The item you don't pick stays on the cart for
-  your next pick, so you can't dodge the anvil forever. The run ends at the first break or fall; the score is kg delivered
-  (the unfinished leg is lost). A good run reaches town 5-6 (about 300 kg, 6-8 minutes). Personal best, `caravan` board.
-- **Daily cart** (signpost): a Caravan run on the day's seed (UTC date from `ow.now()`). First run counts; later ones are
-  practice. Today's top 5 on the run-over board, you marked.
+- **Caravan** (signpost in the lobby): a push-your-luck run. At each town you load (pick, aim, drop; no hourglass; the
+  item you don't pick stays on the cart). From three loads on, the **Set off** plate shows what the load would pay:
+  its kg × (1 + 0.2 per load past three), ×2 if the camel is sweating when you leave, plus the soft landing bonuses. Press
+  it (G) and the camel walks the load to the next town (the road sways it, more town by town); the town pays at the gate
+  (a receipt, coins, "+kg" to your tag) and checks its order (10 kg, then 8 more each town): short of it, the camel loses
+  one patience. A break or a fall loses the load on the camel and one patience. The camel starts with three (water skins
+  add one). At every town you choose one of three gifts (1 / 2 / 3): Strong knees (breaks 8% later), Tall rails, Grippy
+  straps, Steady gait (less sway on the road), Haggler (+25% pay), Soft paws (soft landings +2), Water skins (+1 patience).
+  Twists come from town 3. Each stop has its own land (Dune market, Oasis, Red canyon, Salt flats, Old ruins, Night market)
+  and the light moves from gold to dusk to night. Score: kg delivered. Personal best, `caravan` board.
+- **Daily cart** (signpost): a Caravan run on the day's seed (UTC date from `ow.now()`): same items, twists and gifts for
+  everyone. First run counts; later ones are practice. Today's top 5 on the run-over board, you marked.
 - Solo runs pause on the platform menu and when the page is hidden, and end if a match starts for you (kg delivered so far
   counts for Caravan; an interrupted daily is not used up).
 
@@ -167,8 +187,19 @@ The host's page decides everything; every other page draws it.
   only when their scored daily run beats their own best for today (one push a day at most). Readers keep entries whose `d`
   is today, whose numbers are integers in range, and whose kg is possible for that town (every load an anvil), the best
   per player, top 5. On the device: today's kg (on the signpost) and the all-time Caravan best.
-- **Sleeves** (cosmetic, the hands everyone sees when you place): Plain; Stripes (win a match); Checks (reach town 3);
-  Stars (3 dailies); Zigzag (10 wins); Gold (Steady Hand). Tap your own tag in the lobby to change.
+- **Levels** (`profile.xp`): XP for every load that holds (2, +5 soft), every kg delivered (1), every match (20, +40 a
+  win) and every daily goal (100, up to +70% with the streak). Level n needs `90 (n-1)^1.45` XP in all (two good runs a
+  level early on, about 30 hours to level 40). A level-up is a toast, a fanfare and, usually, something new in the Stable.
+- **The Stable** (signpost in the lobby): the camel on the left, the day's board and the wardrobe on the right: 6 coats
+  (Sand, Cream, Cocoa, Ash, Rose, Gold), 6 saddle blankets, 7 hats (Sun hat, Flowers, Bandana, Shades, Top hat, Crown)
+  and 6 sleeve patterns. Each is earned by a level or a feat (Gold coat: town 10; Crown: a 7-day streak; Candy blanket:
+  a 3-day streak; sleeves: a win, town 3, 3 dailies, level 11, Steady Hand); a locked one says what earns it. The camel
+  you dress is the one you play with (Caravan, the lobby); your sleeves are what everyone sees when you place. New
+  unlocks get a rose dot until you look.
+- **Today's goals** (`profile.goals`): three a day, the same for everyone (from the day's seed), growing in size: deliver
+  kg, soft landings, reach a town, set off sweating, hold loads, load the cat, land a vase whole, load straws, play the
+  Daily cart, play matches. A goal done pays 100 XP × the streak bonus. **Streak** (`profile.streak`): days in a row with
+  a goal done; a lantern on the board, lit while it is alive.
 - **Badges** (256 px discs):
 
 | id | Name | Earned |
@@ -182,6 +213,13 @@ The host's page decides everything; every other page draws it.
 | `six-towns` | Six Towns | Reach town 6 in one Caravan run. |
 | `heavy-lifter` | Heavy Lifter | Deliver 1000 kg in Caravan, all runs together. |
 | `daily-cart` | Daily Cart | Finish a Daily cart. |
+| `on-the-brink` | On the Brink | Set off in Caravan while the camel is sweating. |
+| `soft-touch` | Soft Touch | Five soft landings in a row. |
+| `fine-china` | Fine China | Bring three whole vases into town on one load. |
+| `cat-nap` | Cat Nap | Bring the cat into town on a load. |
+| `ten-towns` | Ten Towns | Reach town 10 in one Caravan run. |
+| `level-10` | Seasoned | Reach level 10. |
+| `week-streak` | Week Streak | Finish a daily goal seven days in a row. |
 
 ## Balance and timing (the numbers)
 
@@ -238,11 +276,12 @@ about 5 minutes with results.
 **Mood** (the camel's tells, written by the host): bored below 0.60 of the breaking point, uneasy to 0.80, sweating to 0.93,
 alarmed above.
 
-**Bots**: skill 0.35-0.85. Pick after 0.9-2.2 s × pace; carry 1.2-2.1 s × pace on an eased path with a small overshoot.
-Placement search: 8 + 16 × skill spots (x every 10 cm across the tray at the item's rest angles, mostly near the load's
-middle, a few at random), each tried with a 100-step quick simulation that includes the start of the weight shift, scored on
+**Bots**: skill 0.35-0.85. An animal decides its pick at once and plans where to put it while it "looks the cart over"
+(0.7-1.6 s × pace), then carries 1.0-1.7 s × pace on an eased path with a small overshoot. Placement search: 7 + 12 × skill
+spots (x every 10 cm across the tray at the item's rest angles, mostly near the load's
+middle, a few at random), each tried with an 84-step quick simulation that includes the start of the weight shift, scored on
 nothing moving, low torque and low height; a less sharp bot sometimes takes one of the next best, and its hand is off by up
-to 0.06 m × (1 - skill) and 5° × (1 - skill). Release height from each animal's range.
+to 0.06 m × (1 - skill) and 5° × (1 - skill). Release height from each animal's range; a careful animal sets a vase down from 10 cm at most.
 - **Fennec** (pace 0.7): quick and greedy; keeps the heavier item until the camel is alarmed; lets go 0.55-1.1 m up.
 - **Tortoise** (pace 1.5): slow and careful; keeps the lighter one once strain passes 45 or the camel looks uneasy; minds
   the balance most; lowers to 0.06-0.2 m.
@@ -250,19 +289,26 @@ to 0.06 m × (1 - skill) and 5° × (1 - skill). Release height from each animal
 - **Gecko**: the show-off; stands tall things upright and builds high.
 - **Jerboa**: nervous; jiggles while aiming and 15% of the time lets go early, short of its spot.
 
-**Caravan**: leg n has 4 + n loads (max 10); the breaking point is drawn per leg from (70-100) × 0.96^(n-1); a walk of three
-steps between loads (1.6 s, tray bob 3 cm and tilt 0.02 × (1 + 0.15(n - 1)) rad); the town walk is 3 s of six steps at 1.5×
-that sway. Cart draws depend only on the run's seed and the draw count (a Daily deals the same items to everyone), straws
-rising toward the end of each leg.
+**Caravan**: the breaking point is drawn per town from (70-100) × 0.96^(n-1) (× 1.08 per Strong knees); at most 12
+loads; the road is 3 s of six steps with a tilt of 0.03 × min(0.55 + 0.2(n - 1), 1 + 0.15(n - 1)) rad (gentle on the
+first roads, then growing; × 0.7 per Steady gait). Cart draws depend only on the run's seed and the draw count (a Daily
+deals the same items to everyone). Measured over animal-played runs (`skill` 0.55-0.9): runs end at town 3-9, median 5,
+median 300 kg, 3-6 minutes; most loads are lost to breaks from town 3 and to the road from town 4. Town 6 is a good run,
+town 10 rare.
 
-**Checked in node** (`npm test`, about 10 s): items held, strained more off-centre, broken past the limit and fallen past
+**Checked in node** (`npm test`, about 30 s): items held, strained more off-centre, broken past the limit and fallen past
 the tray's end; the same drop settling identically twice, keyframes included; keyframes surviving the wire and refusing
 junk; offers, the alarmed camel's straw, passing the other item on, scoring (the one who broke it or dropped something
 scores 0), skips, the 40-turn limit, record checks against malformed rounds, the daily board's checks; every animal's plan
 inside the hover box and its carry path; whole bot matches ending with whole-kg scores; a Caravan run and the title's
 attract mode playing to the end; and the match over a pretend room with a host and a guest page: whole rounds with the
 guest's keyframes equal to the host's, only the placer may act, a new host mid-settle reaching the same result, a leaver
-passed over, and the out-of-time pick and drop.
+passed over, and the out-of-time pick and drop. The depth: twists (none in round 1, never twice in a row), soft landings
+(set down: soft; dropped: not) and their streak, the vase smashing from high and holding when set down, the cat walking,
+items arriving town by town, Set off only from three loads and its payout (kg × the load multiplier, ×2 sweating), the
+town order and patience, perks stacking only as far as they go, the same day dealing the same run; an animal-played run
+getting past the first towns and ending on its own. Progress: levels and their curve, the Stable's locks, today's goals
+(three, the same for everyone, new each day), tracking, the streak (kept, grown, lost) and a broken save cleaned.
 
 ## Every screen
 
@@ -273,11 +319,12 @@ bone signboards.
   start again). "The Last Straw" in Big Shoulders Display 900, bone with an ink shadow, across the sky (under the platform's
   menu when it would reach it), a golden straw underlining it. One gold Play slab (68 px tall) on the sand in front of the
   weighbridge. Click, tap, Space or Enter.
-- **Lobby** (room phase lobby): the empty camel chewing; the tag rope across the top with up to 6 luggage tags (avatar or
+- **Lobby** (room phase lobby): the empty camel chewing, dressed as you dressed it; the tag rope across the top with up to 6 luggage tags (avatar or
   animal portrait, name, a seat symbol ● ▲ ■ ◆ ★ ⬢ in the seat colour, host marked with a small key; tap your own to change
   sleeves, an empty one to invite); the cart on the left with the settings board (three rows; the host taps to cycle, others
-  see the values); two signposts on the right (hidden for a private server's host with friends waiting):
-  "Caravan" (with your best kg) and "Daily cart" (today's kg or "New"); everything above the platform's Ready strip. Results
+  see the values); the day's board on the right (level and XP, the streak's lantern, today's three goals with ticks) and
+  three signposts under it (hidden for a private server's host with friends waiting): "Stable" ("New look" when
+  something is unlocked), "Caravan" and "Daily cart" (today's kg or "New"); everything above the platform's Ready strip. Results
   of the last match stay on the tags (place numbers) until the next one starts.
 - **Countdown**: 3-2-1 painted on the sun disc, drum on each, "Load!".
 - **Play**: the camel and its load centred (the camera eases out as the load grows); the cart at the left with the two
@@ -296,11 +343,20 @@ bone signboards.
   total kg; straw confetti and a fanfare. Public: a sand bar runs 25 s back to the lobby. Private: the host's "Back to
   lobby" slab; everyone else sees "Waiting for" the host.
 - **Watching** (latecomer): the scene as everyone sees it, with "Next round" by the cart.
-- **Caravan / Daily**: your tag alone on the rope with kg delivered (big); the town signpost ahead with the loads left
-  ("3 to town"); the dial with the leg's band; the pause slab. The camel walks between loads (the dunes scroll); town
-  arrival: the gate comes in, items lift off one by one with "+kg" flying to your tag. The sun sinks town by town and the
-  stars come out. Run over: the camel down, a board with kg delivered, town reached, your best (or "New best"), the day's
-  or the all-time top 5 with you marked, and two slabs: "Again" (Space) and "Lobby" (Esc).
+- **Caravan / Daily**: your tag alone on the rope with kg delivered (big); the town post by the dial (the next town, its
+  order filling up, a check when it is met) with the patience humps under it and the twist's tag; the dial with the
+  town's band; the pause slab; once three loads are on, the Set off plate (pay, ×mult, ×2 sweat) with a walking camel.
+  On the road the land scrolls, the far caravan walks, the town gate comes in; at the gate a receipt drops (kg, the
+  multipliers, the order met or short) and the items lift off one by one, "+kg" flying to the receipt and then to your
+  tag; then three gift cards (1 / 2 / 3). A new stop: a sand veil sweeps across, the town sign hangs ("Town 3 · Red
+  canyon · Wobbly"). Run over: the camel down, a board with kg delivered, town reached, your best (or "New best"), the
+  XP the run earned on a bar with your level, the day's or the all-time top 5 with you marked, and two slabs: "Again"
+  (Space) and "Lobby" (Esc).
+- **Stable**: the camel in the oasis at golden hour, chewing; the day's board over the wardrobe (a row per kind, a swatch
+  per unlock: the camel's head in each coat, each blanket, each hat on a camel head, a gloved hand in each sleeve; the
+  worn one framed in gold, the locked ones dim with a lock and what earns them). Tap to wear (the camel snorts and shakes
+  it on); Back (Esc).
+- **Toasts**: a level, an unlock, a goal done: a small board slides out from under the rope, holds, and slides back.
 - **Pause** (solo runs only): the scene frozen, a board "Paused" with "Resume" and "End run".
 - **Room closed**: one board, one slab: removed → "You were removed" / Play; disconnected → "Connection lost" / Rejoin;
   replaced → "Playing in another tab" / Play here (each calls `rooms.join` again with the same options).
@@ -312,9 +368,12 @@ the middle, cart left, dial right. Nothing under `ow.ui.reserved`; targets at le
 
 ## Art direction
 
-**The world:** a caravan weigh-station at sunset, drawn like a 1930s travel poster: flat colour shapes in two or three tones,
-a huge low sun, a sky in flat bands, three layers of dunes with parallax, long violet shadows across the sand, and chunky
-junk with ink outlines.
+**The world:** "golden hour at the weigh station". A painted, lit desert: a graded sky, a sun that glows and blooms with god
+rays, long clouds lit from below, mesas in the haze with a caravan walking the far ridge and vultures circling, three
+dune ranges with sunlit crests, wind-blown sand, a market stall and set dressing, and a film grain and vignette over it
+all. Each stop of the road has its own land and landmarks (market, palms, red rock, salt, ruins, lanterns), and the time
+of day moves round by round and town by town: gold, dusk, night with lanterns and stars. One light everywhere: warm rim
+light on the sun's side, violet shade opposite, soft contact shadows under items and feet.
 
 **Palette:**
 
@@ -343,10 +402,12 @@ shadow across the sand to the right. Orthographic side view; the camera eases to
 (the hover zone stays in frame all round, so the camera only eases out as the load grows and never pumps between turns);
 dunes parallax at 15/35/60%; camera shake from decaying trauma² on landings (scaled by kg) and the break.
 
-**The camel:** a dromedary facing the cart, heavy-lidded, always chewing, with a striped pack rug and a wooden saddle tray. Its
-eye side-eyes whoever placed last. Its knees bow as strain grows, tremble once it's sweating, and its eyes go wide and its ears
-flat when alarmed (sweat drops fly). It squashes down a little under every landing. The break: a zigzag crack along the back,
-a creak, the legs fold front then back like a deckchair, the body thumps onto the planks, tongue out.
+**The camel:** a 2D rig: two-bone legs with planted hooves, a spline neck, a head with heavy lids, lashes, a split lip,
+ears and a tail on springs; it breathes, chews cud, blinks, flicks its ears, watches the item in your hands and side-eyes
+whoever placed last. It acts the strain: bored, uneasy, sweating, alarmed; knees bow and shake, feet shuffle, it grunts
+on a landing (squash with follow-through). The break: a crack along the back, a creak, the legs fold front then back into
+the kneeling pose (knees on the sand, shins tucked under), the body thumps down, stars circle. It walks with a pacing gait
+on the road. Its coat, blanket and hat come from the Stable.
 
 **Players and bots:** players are their platform avatar on their tag and their hands (sleeves in the seat colour and their
 chosen pattern, a symbol on the cuff) holding the item from above. Bots are animal portraits on their tags and their own paws:
@@ -356,9 +417,12 @@ paws.
 **HUD in the world's language:** scores on luggage tags hanging from a rope; the hidden limit's band on a brass weighbridge
 dial with a straw needle; turn time in the cart's hourglass; rounds as lanterns; results on sign boards and a heap of junk.
 
-**Juice:** items squash on landing, the needle overshoots on a spring, the cart bounces on a pick, tags swing when they change,
-sand puffs where things land, splinters on the crack, an 80 ms freeze then 0.3× slow motion for 0.8 s on a break, straw
-confetti for the winner. Reduced motion: no shake, no freeze or slow motion, fewer particles.
+**Juice:** debris by material (sparks off iron, splinters off wood, straw and cloth bits, shards and a puff off a smashed
+vase, juice off fruit), impact rings, a hit-stop and a directional shake on heavy landings, the camera punching in a
+little and pushing in while the camel is in the red, the needle overshooting on a spring, picks lifting off the cart into
+the hands, new offers sliding onto the cart, tags swinging, "+kg" floaters flying to where they count, receipts and gift
+cards dropping in, an 80 ms freeze then 0.3× slow motion on a break, straw confetti for the winner. Reduced motion: no
+shake, no freeze or slow motion, fewer particles.
 
 ## Sound
 
@@ -369,7 +433,10 @@ All synthesized in Web Audio, started on the first tap or key.
 - Drop: hands open with a whup; heavy items whistle a little as they fall.
 - Landing (volume by kg × speed): wood (low knock), metal (inharmonic ring), cloth (low thump), ceramic (clink), rubber
   (squeak), brass (a honk for the tuba), straw (a tiny tick), and the rest.
-- The camel: a grumble after each placement that rises with its mood; spine creaks that come faster and louder with strain;
+- Soft landing: a chime that climbs with the streak. Smash: porcelain bursting. The cat: a meow. Hay, paper, leather,
+  cloth and fur each have their own landing.
+- Caravan: a bell as the camel sets off, brass at the gate, a coin shower at the receipt, a fanfare at a town.
+- The camel: a throaty grumble after each placement that rises with its mood; spine creaks that come faster and louder with strain;
   a snort when something falls.
 - The needle: a spring boing when it swings far.
 - The break: a crack, a slow-motion whoosh, the wooden clatter of the fold.
@@ -378,7 +445,8 @@ All synthesized in Web Audio, started on the first tap or key.
 - Countdown: three drum hits, a brass call for "Load!". Win: a short brass fanfare.
 - **Music**: a small sequencer, percussion first: a low frame-drum thump, a dry rim click, a shaker, a plucked bass in D
   dorian and a sparse two-note mallet motif every other bar (no scale borrowed as a desert cliché). 96 BPM on a fresh camel
-  rising to 124 BPM at the top of the red, the shaker doubling its density past 60%; in menus and the lobby only bass and
+  rising to 124 BPM at the top of the red, the shaker doubling its density past 60%; an oud-like plucked phrase joins past
+  35% strain, a riq past 60%, a heartbeat past 85%; on the road a walking bell; in menus and the lobby only bass and
   shaker, at half volume.
 
 ## Store art and the trailer
@@ -396,7 +464,10 @@ items with the game's physics.
   is, that player's hands lowering a watermelon over the load.
 - **Icon** (512×512): the camel's head side-eyeing, a golden straw in its mouth, on the sun disc. No text.
 - **Badges**: a symbol on a palette-coloured disc with a brass rim: a crate, a golden straw, a straw set on a crate, the
-  anvil, a tower, the crowned winner, a town gate with 6, a weight, a calendar page.
+  anvil, a tower, the crowned winner, a town gate with 6, a weight, a calendar page, the dial in the red with sweat, a
+  crate in gold rings, three vases, the cat on a crate, a town gate with 10, the level badge, the streak's lantern.
+- The cover's camel wears the Flowers hat, the results camel a top hat and the night blanket, the multi camel a bandana:
+  the Stable on the store page.
 - **Trailer** (23 s), from real play captured with the autoplay: the goal in the first frame (a tall load, the needle, the
   pick between a teapot and an anvil, the anvil going up), the animals loading, the load slumping with the needle in the
   red, the last straw and its sign, the win on the heap, and the title screen to close.
@@ -421,11 +492,15 @@ with its license, imported by relative path so node tests use the same file.
 - `game/net.js` the match over the room: `createMatch`/`createHost`/`createBots`, rpcs, the host's turns, keyframes,
   presence; `game/solo.js` local runs (Caravan, Daily, the attract mode) and the animals' auto hand; `game/main.js` boot,
   saves, input, the title and solo screens, drawing; `game/match-view.js` the room's screens.
-- `game/scene.js` one frame from a scene description (the game and the posters); `game/render.js` sky, dunes, weighbridge,
-  tray and shadows; `game/camel.js`; `game/art.js` items, hands, portraits; `game/ui.js` tags, dial, cart, signs, slabs;
-  `game/fx.js`; `game/audio.js`; `game/poster.js` store art.
+- `game/progress.js` levels, unlocks, daily goals and the streak (pure, tested); `game/stable.js` the day's board and the
+  wardrobe; `game/runhud.js` the Caravan's town post, patience, Set off plate and gift cards.
+- `game/scene.js` one frame from a scene description (the game and the posters); `game/render.js` the station, the
+  camel's layer with its shadow and rim light, the hands, the grade; `game/backdrop.js` the land and sky; `game/look.js`
+  the palette, the time of day and the stops; `game/camel.js`; `game/art.js` items, hands, portraits; `game/ui.js` tags,
+  dial, cart, signs, slabs; `game/fx.js`; `game/audio.js`; `game/poster.js` store art.
 - Captures only (never in production): `?autoplay=1` plays this page's turns with the animals' brain (`autoplay=caravan` a
-  Caravan run), and `&rounds=1` asks for a shorter match.
+  Caravan run, `&endat=<s>` ends it then; `autoplay=lobby` / `autoplay=stable` open those screens; `&xp=` and `&streak=`
+  give the save some progress), and `&rounds=1` asks for a shorter match.
 - Canvas at `ow.settings.pixelRatio(2)`, flat fills drawn every frame; physics only where it runs (host, the placer's
   prediction, solo, attract); audio suspends and solo runs pause on `visibilitychange`.
 
