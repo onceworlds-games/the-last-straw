@@ -732,10 +732,13 @@ export function createMatchView(app) {
     if (flipping && !flipped && V.rank > R.before.rank) V = { ...R.before, stars: R.before.need };
     const prevLit = R.steps[lit]?.total ?? null;
     // the card: on the sand, beside the button when the screen is wide, else above it
-    const cw = Math.min(L.phone ? 300 : 340, L.W - 24), ch = L.phone ? 62 : 70;
-    const side = L.W >= cw * 2 + 300;
+    // (the slab is 240 wide in the middle, the public room's sand bar up to 360)
+    const roomLeft = (L.W - 260) / 2 - 16;
+    const side = roomLeft >= 240;
+    const cw = side ? Math.min(L.phone ? 300 : 340, roomLeft) : Math.min(300, L.W - 24), ch = L.phone ? 62 : 70;
     const x = side ? 16 : L.W / 2 - cw / 2;
-    const y0 = side ? L.H - ch - 18 : clamp(L.gy + 14, L.H * 0.5, L.H - 100 - ch);
+    const overBar = x + cw > L.W / 2 - Math.min(360, L.W * 0.6) / 2;
+    const y0 = side ? L.H - ch - (overBar ? 44 : 18) : clamp(L.gy + 14, L.H * 0.5, L.H - 100 - ch);
     const rise = 1 - (1 - clamp(age / 0.35, 0, 1)) ** 3;
     const y = y0 + (1 - rise) * (ch + 40);
     let flipX = 1;
