@@ -150,6 +150,8 @@ async function boot() {
         S.net = createNet(room, lib, {
           onResults: (standings, mine) => onResults(standings, mine),
           onClose: () => {},
+          // captures only (the autoplay, never in production): a shorter match, `&rounds=1`
+          rounds: autoplay ? Number(params.get('rounds')) || undefined : undefined,
         });
       } catch (err) {
         console.warn('[the-last-straw] could not start the match', err);

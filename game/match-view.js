@@ -515,11 +515,12 @@ export function createMatchView(app) {
     const key = `${d.rid}`;
     if (S.signKey !== key) {
       const ready = last.r === 'broke' ? S.beat && S.beat.k === turnKey(d) && S.beat.t > 1.3 : last.r === 'fell' ? S.play.k === turnKey(d) && S.play.s >= (d.verdict?.at ?? 0) + 20 : true;
-      const late = m.phase === 'roundEnd' && S.t - (S.roundEndSeen ?? S.t) > 2.6;
       if (m.phase === 'roundEnd' && S.roundEndKey !== key) {
         S.roundEndKey = key;
         S.roundEndSeen = S.t;
       }
+      // only this round's end counts (an earlier round's time would drop the sign before the collapse plays)
+      const late = m.phase === 'roundEnd' && S.roundEndKey === key && S.t - S.roundEndSeen > 2.6;
       if (!ready && !late) return;
       S.signKey = key;
       S.signAt = S.t;

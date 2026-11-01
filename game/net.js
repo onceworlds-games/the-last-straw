@@ -38,7 +38,7 @@ const isNum = (v, lim = 1e6) => typeof v === 'number' && Number.isFinite(v) && M
 
 /**
  * Wire the match. `lib`: the helpers ({ createMatch, createHost, t, createBots }). `hooks`: onResults(standings, mine),
- * onClose(reason), onFrames(k).
+ * onClose(reason), onFrames(k), rounds (a fixed number of rounds instead of the lobby's setting: captures only).
  */
 export function createNet(room, lib, hooks = {}) {
   const { createMatch, createHost, t, createBots } = lib;
@@ -53,7 +53,7 @@ export function createNet(room, lib, hooks = {}) {
   let lastPresence = '';
 
   const match = createMatch(room, {
-    rounds: 'rounds',
+    rounds: Number.isInteger(hooks.rounds) && hooks.rounds >= 1 && hooks.rounds <= 5 ? hooks.rounds : 'rounds',
     introSeconds: 2.2,
     roundEndSeconds: 5,
     resultsSeconds: room.kind === 'public' ? 25 : 0,
