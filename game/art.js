@@ -351,25 +351,61 @@ function build() {
     base: PAL.gold, shade: PAL.goldDark,
     body: (() => {
       const p = P();
-      rr(p, -0.27, -0.36, 0.3, 0.6, 0.13);
-      poly(p, [[-0.05, 0.02], [0.08, -0.04], [0.31, 0.3], [-0.11, 0.36]]);
+      // the coiled body (an upright oval of tubing), the bell flaring up and to the right
+      ell(p, -0.12, -0.1, 0.15, 0.26);
+      p.moveTo(-0.08, 0.06);
+      p.bezierCurveTo(0.0, 0.1, 0.04, 0.12, 0.1, 0.16);
+      p.bezierCurveTo(0.14, 0.2, 0.2, 0.32, 0.29, 0.35);
+      p.lineTo(-0.11, 0.36);
+      p.bezierCurveTo(-0.06, 0.3, -0.06, 0.2, -0.1, 0.14);
+      p.closePath();
       return p;
     })(),
     deco(ctx, lw) {
-      ctx.fillStyle = PAL.ink;
+      // the bell's mouth
+      const g = ctx.createRadialGradient(0.1, 0.35, 0.01, 0.1, 0.35, 0.2);
+      g.addColorStop(0, '#5A3A10');
+      g.addColorStop(1, PAL.goldDark);
+      ctx.fillStyle = g;
       ctx.beginPath();
-      ctx.ellipse(0.1, 0.33, 0.2, 0.04, -0.15, 0, Math.PI * 2);
+      ctx.ellipse(0.09, 0.355, 0.2, 0.035, -0.02, 0, Math.PI * 2);
       ctx.fill();
-      ctx.strokeStyle = PAL.goldDark;
-      ctx.lineWidth = lw * 2;
-      ctx.beginPath();
-      ctx.ellipse(-0.12, -0.08, 0.07, 0.17, 0, 0, Math.PI * 2);
-      ctx.stroke();
-      ctx.fillStyle = PAL.bone;
-      for (const y of [0.06, 0.12, 0.18]) ctx.fillRect(-0.32, y, 0.07, 0.035);
       ctx.strokeStyle = PAL.ink;
-      ctx.lineWidth = lw;
-      for (const y of [0.06, 0.12, 0.18]) ctx.strokeRect(-0.32, y, 0.07, 0.035);
+      ctx.lineWidth = lw * 1.5;
+      ctx.stroke();
+      // the inner coil of tubing
+      ctx.strokeStyle = PAL.goldDark;
+      ctx.lineWidth = lw * 2.4;
+      ctx.beginPath();
+      ctx.ellipse(-0.12, -0.12, 0.075, 0.16, 0, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.strokeStyle = 'rgba(255,240,190,0.7)';
+      ctx.lineWidth = lw * 1.2;
+      ctx.beginPath();
+      ctx.ellipse(-0.125, -0.11, 0.06, 0.14, 0, Math.PI * 0.9, Math.PI * 1.5);
+      ctx.stroke();
+      // three valves with pearl caps on the left, the mouthpiece pipe
+      for (const y of [0.0, 0.08, 0.16]) {
+        ctx.fillStyle = PAL.goldDark;
+        ctx.fillRect(-0.3, y - 0.012, 0.12, 0.024);
+        ctx.strokeStyle = PAL.ink;
+        ctx.lineWidth = lw;
+        ctx.strokeRect(-0.3, y - 0.012, 0.12, 0.024);
+        ctx.fillStyle = PAL.bone;
+        ctx.beginPath();
+        ctx.ellipse(-0.31, y, 0.018, 0.026, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+      }
+      ctx.strokeStyle = PAL.ink;
+      ctx.lineWidth = lw * 3.4;
+      ctx.beginPath();
+      ctx.moveTo(-0.2, 0.2);
+      ctx.quadraticCurveTo(-0.28, 0.3, -0.2, 0.33);
+      ctx.stroke();
+      ctx.strokeStyle = PAL.gold;
+      ctx.lineWidth = lw * 1.8;
+      ctx.stroke();
     },
   };
   A.rug = {
@@ -658,6 +694,7 @@ export function drawItem(ctx, i, lw, opts = {}) {
     a.deco(ctx, lw);
     ctx.restore();
   }
+  if (a.body && !opts.flat) material(ctx, a, ITEMS[i], lw, opts.angle ?? 0);
   if (a.body) {
     ctx.strokeStyle = PAL.ink;
     ctx.lineWidth = lw * 2;
@@ -671,6 +708,121 @@ export function drawItem(ctx, i, lw, opts = {}) {
     else silhouetteParts(ctx, i);
     ctx.globalAlpha = 1;
   }
+}
+
+// ---------------------------------------------------------------- material and light
+
+const METAL = new Set(['copper', 'brass', 'iron', 'tin']);
+const GLOSS = new Set(['enamel', 'ceramic', 'rubber', 'melon', 'clock', 'leather', 'glass']);
+const GRAIN = new Set(['wood', 'clock']);
+const SOFT = new Set(['cloth', 'straw', 'fur', 'hay']);
+const SHEEN = { copper: '#FFD9B0', brass: '#FFF6C8', iron: '#B9B4E8', tin: '#F4F0FF' };
+
+/**
+ * Light and material over an item's body (clipped to it): one sun from the upper left in world space (so a turned item
+ * keeps its light where it should be), an inner bevel on the lit edges and soft occlusion on the far ones; then metal
+ * streaks, a glaze highlight, wood grain or a cloth weave.
+ */
+function material(ctx, a, it, lw, angle) {
+  const box = a.box ?? (a.box = { w: it.w, h: it.h });
+  const R = Math.max(box.w, box.h) * 0.75;
+  ctx.save();
+  ctx.clip(a.body);
+  // in world-aligned axes from here (the sun does not turn with the item)
+  ctx.save();
+  ctx.rotate(-angle);
+  const g = ctx.createLinearGradient(-R * 0.7, R * 0.7, R * 0.7, -R * 0.7 - R * 0.4);
+  g.addColorStop(0, 'rgba(255,236,190,0.28)');
+  g.addColorStop(0.45, 'rgba(255,236,190,0)');
+  g.addColorStop(0.62, 'rgba(42,18,64,0)');
+  g.addColorStop(1, 'rgba(42,18,64,0.32)');
+  ctx.fillStyle = g;
+  ctx.fillRect(-R, -R, R * 2, R * 2);
+  ctx.restore();
+  // the bevel: the outline shifted down-right shows inside the upper-left edges, and the other way round
+  const ca = Math.cos(-angle), sa = Math.sin(-angle);
+  const off = (dx, dy) => [dx * ca - dy * sa, dx * sa + dy * ca];
+  const d = lw * 2.2;
+  let [ox, oy] = off(d, -d);
+  ctx.save();
+  ctx.translate(ox, oy);
+  ctx.strokeStyle = METAL.has(it.mat) ? 'rgba(255,250,225,0.75)' : 'rgba(255,244,214,0.5)';
+  ctx.lineWidth = lw * 2.4;
+  ctx.stroke(a.body);
+  ctx.restore();
+  [ox, oy] = off(-d * 1.4, d * 1.4);
+  ctx.save();
+  ctx.translate(ox, oy);
+  ctx.strokeStyle = 'rgba(42,18,64,0.3)';
+  ctx.lineWidth = lw * 4;
+  ctx.stroke(a.body);
+  ctx.restore();
+  const w = box.w, h = box.h;
+  if (METAL.has(it.mat)) {
+    // streaks run along the object (reflections move with it), a hard one and a soft one
+    const sh = SHEEN[it.mat];
+    const tall = h > w;
+    const k1 = tall ? w : h;
+    ctx.fillStyle = sh;
+    ctx.globalAlpha = 0.5;
+    if (tall) ctx.fillRect(-w * 0.28, -h, w * 0.07, h * 2);
+    else ctx.fillRect(-w, h * 0.12, w * 2, k1 * 0.08);
+    ctx.globalAlpha = 0.22;
+    if (tall) ctx.fillRect(-w * 0.16, -h, w * 0.16, h * 2);
+    else ctx.fillRect(-w, -h * 0.02, w * 2, k1 * 0.16);
+    ctx.globalAlpha = 1;
+    // a cold reflected light from below for iron
+    if (it.mat === 'iron') {
+      ctx.strokeStyle = 'rgba(160,150,230,0.45)';
+      ctx.lineWidth = lw * 2;
+      ctx.save();
+      ctx.translate(...off(-d * 0.8, d * 0.8));
+      ctx.stroke(a.body);
+      ctx.restore();
+    }
+  } else if (GLOSS.has(it.mat)) {
+    ctx.save();
+    ctx.rotate(-angle);
+    const hx = -w * 0.22, hy = h * 0.2;
+    const gg = ctx.createRadialGradient(hx, hy, 0, hx, hy, Math.min(w, h) * 0.45);
+    gg.addColorStop(0, 'rgba(255,255,255,0.55)');
+    gg.addColorStop(0.35, 'rgba(255,255,255,0.18)');
+    gg.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.fillStyle = gg;
+    ctx.fillRect(-R, -R, R * 2, R * 2);
+    ctx.fillStyle = 'rgba(255,255,255,0.85)';
+    ctx.beginPath();
+    ctx.ellipse(hx - Math.min(w, h) * 0.06, hy + Math.min(w, h) * 0.06, Math.min(w, h) * 0.05, Math.min(w, h) * 0.028, -0.6, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+  if (GRAIN.has(it.mat)) {
+    ctx.strokeStyle = 'rgba(90,40,20,0.22)';
+    ctx.lineWidth = lw * 1.1;
+    ctx.beginPath();
+    const along = w >= h;
+    const L = along ? w : h, S = along ? h : w;
+    for (let k = 0; k < 7; k++) {
+      const v = -S / 2 + ((k + 0.5) / 7) * S;
+      for (let u = -L / 2; u < L / 2; u += L / 24) {
+        const wob = Math.sin(u * 9 + k * 1.7) * S * 0.025 + Math.sin(u * 23 + k) * S * 0.01;
+        const x = along ? u : v + wob, y = along ? v + wob : u;
+        if (u === -L / 2) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      }
+    }
+    ctx.stroke();
+  } else if (SOFT.has(it.mat)) {
+    ctx.strokeStyle = 'rgba(42,18,64,0.1)';
+    ctx.lineWidth = lw;
+    ctx.beginPath();
+    for (let x = -w / 2; x < w / 2; x += lw * 4) {
+      ctx.moveTo(x, -h / 2);
+      ctx.lineTo(x + h * 0.3, h / 2);
+    }
+    ctx.stroke();
+  }
+  ctx.restore();
 }
 
 function partsPath(i) {

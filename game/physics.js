@@ -20,6 +20,9 @@ export const CAMEL = {
 export const HOVER = { xMax: 1.6, minGap: 0.2, maxGap: 1.6, defGap: 0.8 };
 export const STRAIN = { perItem: 2, torque: 0.7, impact: 0.1, impactTau: 0.25 };
 export const BAND = [70, 100];
+/** A soft landing: first touch slower than this (m/s). A fragile item smashes faster than `smash`. A cat walks `walk`. */
+export const LANDING = { soft: 2.3, smash: 2.7 };
+export const CAT_WALK = { after: 14, steps: 66, speed: 0.42 };
 
 export const SETTLE = {
   quietV: 0.03,
@@ -94,9 +97,22 @@ export function hoverBox(item, a, top) {
   return { xMin: -HOVER.xMax, xMax: HOVER.xMax, yMin: top + HOVER.minGap - e.minY, yMax: top + HOVER.maxGap - e.minY, yDef: top + HOVER.defGap - e.minY };
 }
 
-export function clampHover(item, x, y, a, top) {
+/**
+ * Keep a hover inside the box. `floor` (optional): where the item would first touch straight below; the hands may go down
+ * to just above it (a gentle set-down), even below the box's usual bottom.
+ */
+export function clampHover(item, x, y, a, top, floor = null) {
   const b = hoverBox(item, a, top);
-  return { x: Math.min(b.xMax, Math.max(b.xMin, x)), y: Math.min(b.yMax, Math.max(b.yMin, y)), a };
+  const yMin = Number.isFinite(floor) ? Math.min(b.yMin, floor + 0.02) : b.yMin;
+  return { x: Math.min(b.xMax, Math.max(b.xMin, x)), y: Math.min(b.yMax, Math.max(yMin, y)), a };
+}
+
+/** The lowest a hover may go at (x, a) on this load: just above where it would first touch. */
+export function hoverFloor(snap, item, x, a, top) {
+  const sim = new Sim(snap);
+  const b = hoverBox(item, a, top);
+  const xx = Math.min(b.xMax, Math.max(b.xMin, x));
+  return landing(sim, item, xx, b.yMax, a).y;
 }
 
 /** Quantise a drop the way it travels over the network, so the host and the dropper simulate the same numbers. */
@@ -137,9 +153,12 @@ export class Sim {
       camel.createFixture(new pl.Polygon(body), { friction: 0.5 });
     }
     this.saddle = this.world.createKinematicBody({ position: pl.Vec2(0, CAMEL.pivotY), userData: { saddle: true } });
-    this.saddle.createFixture(new pl.Box(CAMEL.trayHalf, 0.06, pl.Vec2(0, 0.06), 0), { friction: 0.75 });
-    this.saddle.createFixture(new pl.Box(0.05, 0.15, pl.Vec2(-1.15, 0.27), 0), { friction: 0.75 });
-    this.saddle.createFixture(new pl.Box(0.05, 0.15, pl.Vec2(1.15, 0.27), 0), { friction: 0.75 });
+    const grip = 0.75 + (options.grip ?? 0);
+    const rail = 0.15 + (options.rails ?? 0);
+    this.saddle.createFixture(new pl.Box(CAMEL.trayHalf, 0.06, pl.Vec2(0, 0.06), 0), { friction: grip });
+    this.saddle.createFixture(new pl.Box(0.05, rail, pl.Vec2(-1.15, 0.12 + rail), 0), { friction: grip });
+    this.saddle.createFixture(new pl.Box(0.05, rail, pl.Vec2(1.15, 0.12 + rail), 0), { friction: grip });
+    this.wind = options.wind ?? 0; // m/s² sideways on every item, in gusts
     this.motion = null; // (t) => { y, a } offsets of the tray
     this.motionT = 0;
     this.steps = 0;
@@ -163,8 +182,32 @@ export class Sim {
     for (const shape of SHAPES[item]) body.createFixture(shape, { density, friction: def.friction ?? 0.9, restitution: def.restitution ?? 0.03 });
     if (vx || vy) body.setLinearVelocity(pl.Vec2(vx, vy));
     if (w) body.setAngularVelocity(w);
-    this.items.push({ body, item, kg: def.kg });
+    this.items.push({ body, item, kg: def.kg, gone: false });
     return this.items.length - 1;
+  }
+
+  /** Take an item out of the world (a smashed vase): it stays in the list (poses keep their length), far below. */
+  remove(i) {
+    const it = this.items[i];
+    if (!it || it.gone) return;
+    it.gone = true;
+    it.kg = 0;
+    it.body.setPosition(pl.Vec2(it.body.getPosition().x, -5));
+    it.body.setLinearVelocity(pl.Vec2(0, 0));
+    it.body.setAngularVelocity(0);
+    it.body.setActive(false);
+  }
+
+  /** One step of wind on the load (gusts that rise and fall, the same on every page). */
+  blow() {
+    if (!this.wind) return;
+    const t = this.steps * DT;
+    const g = this.wind * (0.55 + 0.45 * Math.sin(t * 2.3) * Math.sin(t * 0.7 + 1));
+    for (const it of this.items) {
+      if (it.gone) continue;
+      const b = it.body;
+      b.applyForceToCenter(pl.Vec2(g * b.getMass(), 0), true);
+    }
   }
 
   /** Move the tray for one step to where `motion(t)` says it is next (velocities, so contacts behave). */
@@ -179,6 +222,7 @@ export class Sim {
 
   step() {
     this.driveSaddle();
+    this.blow();
     this.world.step(DT, ITER_V, ITER_P);
     this.steps++;
   }
@@ -202,7 +246,7 @@ export class Sim {
   }
 
   snapshot() {
-    return this.items.map(({ body, item }) => {
+    return this.items.filter((it) => !it.gone).map(({ body, item }) => {
       const q = body.getPosition();
       return [item, Math.round(q.x * Q), Math.round(q.y * Q), Math.round(wrapAngle(body.getAngle()) * Q)];
     });
@@ -213,6 +257,7 @@ export class Sim {
     let w = 0, m = 0;
     for (let i = 0; i < count; i++) {
       const it = this.items[i];
+      if (it.gone) continue;
       const x = it.body.getPosition().x;
       // something already tumbling off the side no longer weighs on the camel (it is about to land in the sand)
       if (Math.abs(x) > 2.5 || this.lowest(i) < 1.2) continue;
@@ -232,6 +277,7 @@ export class Sim {
   /** The first item touching the ground or gone off the world, or -1. */
   fallen() {
     for (let i = 0; i < this.items.length; i++) {
+      if (this.items[i].gone) continue;
       const q = this.items[i].body.getPosition();
       if (Math.abs(q.x) > 7 || q.y < -1 || this.lowest(i) < 0.04) return i;
     }
@@ -241,7 +287,7 @@ export class Sim {
   quiet(from = 0) {
     for (let i = from; i < this.items.length; i++) {
       const b = this.items[i].body;
-      if (!b.isAwake()) continue;
+      if (this.items[i].gone || !b.isAwake()) continue;
       const v = b.getLinearVelocity();
       if (Math.hypot(v.x, v.y) > SETTLE.quietV || Math.abs(b.getAngularVelocity()) > SETTLE.quietW) return false;
     }
@@ -251,7 +297,8 @@ export class Sim {
   top() {
     let top = CAMEL.lipTop;
     for (let i = 0; i < this.items.length; i++) {
-      const { body, item } = this.items[i];
+      const { body, item, gone } = this.items[i];
+      if (gone) continue;
       const q = body.getPosition();
       top = Math.max(top, lowestHighest(item, q.x, q.y, body.getAngle())[1]);
     }
@@ -262,9 +309,9 @@ export class Sim {
 // ---------------------------------------------------------------- the camel's own movements (the tray's offsets)
 
 /** After a placement the camel shifts its weight toward the heavier side. `M` is the off-centre load (kg·m). */
-export function shiftMotion(M) {
+export function shiftMotion(M, wobble = 1) {
   const dir = M > 0 ? -1 : 1; // the heavy side dips first
-  const A = Math.min(0.05, 0.008 + 0.002 * Math.abs(M));
+  const A = Math.min(0.05 * wobble, (0.008 + 0.002 * Math.abs(M)) * wobble);
   const len = SETTLE.shiftSteps * DT;
   return (t) => {
     if (t >= len) return { y: 0, a: 0 };
@@ -273,10 +320,10 @@ export function shiftMotion(M) {
 }
 
 /** Caravan: three steps of walking (or the longer walk into a town). `leg` from 1. */
-export function walkMotion(leg, town = false, M = 0) {
+export function walkMotion(leg, town = false, M = 0, sway = 1) {
   const len = town ? 3 : 1.6;
   const steps = town ? 6 : 3;
-  const amp = 0.02 * (1 + 0.15 * (leg - 1)) * (town ? 1.5 : 1);
+  const amp = 0.02 * (1 + 0.15 * (leg - 1)) * (town ? 1.5 : 1) * sway;
   const lean = Math.max(-0.02, Math.min(0.02, -0.002 * M));
   return {
     len,
@@ -298,11 +345,17 @@ export function walkMotion(leg, town = false, M = 0) {
  * options: T (breaking point; Infinity for none), motion: 'shift' | 'walk' | 'town', leg (Caravan), keyframes (default true).
  */
 export function createSettle(snap, drop, options = {}) {
-  const sim = new Sim(snap);
+  const sim = new Sim(snap, { wind: options.wind, grip: options.grip, rails: options.rails });
   const T = options.T ?? Infinity;
   const d = quantDrop(drop);
   const ni = sim.addItem(drop.item, d.x, d.y, d.a);
-  const newKg = ITEMS[drop.item].kg;
+  const def = ITEMS[drop.item];
+  const newKg = def.kg;
+  const wobble = options.wobble ?? 1;
+  let vin = -1; // the new item's speed at its first touch
+  let smashAt = -1;
+  let smashPending = false;
+  const catDir = d.x >= 0 ? 1 : -1; // a cat strolls toward the end it is nearer
   const keep = options.keyframes !== false;
   const frames = [];
   let phase = 'fall';
@@ -321,9 +374,11 @@ export function createSettle(snap, drop, options = {}) {
     const other = a === sim.items[ni].body ? b : b === sim.items[ni].body ? a : null;
     if (!other || other.getUserData()?.ground) return;
     const v = sim.items[ni].body.getLinearVelocity();
-    impact = STRAIN.impact * newKg * Math.hypot(v.x, v.y);
+    vin = Math.hypot(v.x, v.y);
+    impact = STRAIN.impact * newKg * vin;
     impactPeak = impact;
     contactStep = sim.steps;
+    if (def.fragile && vin > LANDING.smash) smashPending = true;
   };
 
   const record = () => {
@@ -341,7 +396,9 @@ export function createSettle(snap, drop, options = {}) {
 
   function finish(r, fi) {
     const st = sim.strain();
-    verdict = { r, at: sim.steps, fi, S: Math.round(st.S * 10) / 10, M: Math.round(st.M * 100) / 100, top: sim.top(), impact: Math.round(impactPeak * 10) / 10, ni };
+    const smashed = smashAt >= 0;
+    const soft = r === 'held' && !smashed && vin >= 0 && vin < LANDING.soft;
+    verdict = { r, at: sim.steps, fi, S: Math.round(st.S * 10) / 10, M: Math.round(st.M * 100) / 100, top: sim.top(), impact: Math.round(impactPeak * 10) / 10, ni, vin: Math.round(Math.max(0, vin) * 100) / 100, soft, smash: smashAt };
   }
 
   measure();
@@ -356,8 +413,25 @@ export function createSettle(snap, drop, options = {}) {
       if (sim.steps % SETTLE.keyEvery === 0) record();
       return ++tumble >= SETTLE.tumbleSteps;
     }
+    // a cat that has landed strolls along the load for a moment, then curls up
+    if (def.walks && contactStep >= 0 && !sim.items[ni].gone) {
+      const k = sim.steps - contactStep;
+      if (k >= CAT_WALK.after && k < CAT_WALK.after + CAT_WALK.steps) {
+        const b = sim.items[ni].body;
+        const v = b.getLinearVelocity();
+        const ramp = Math.min(1, (k - CAT_WALK.after) / 8, (CAT_WALK.after + CAT_WALK.steps - k) / 8);
+        b.setLinearVelocity(pl.Vec2(catDir * CAT_WALK.speed * ramp, v.y));
+        b.setAngularVelocity(b.getAngularVelocity() * 0.6);
+      }
+    }
     sim.step();
     phaseStep++;
+    if (smashPending) {
+      smashPending = false;
+      smashAt = sim.steps;
+      sim.remove(ni);
+      impact *= 0.5;
+    }
     const st = measure();
     const fi = sim.fallen();
     if (liveS > T) finish('broke', -1);
@@ -373,11 +447,11 @@ export function createSettle(snap, drop, options = {}) {
           quietRun = 0;
           sim.motionT = 0;
           if (options.motion === 'walk' || options.motion === 'town') {
-            const w = walkMotion(options.leg ?? 1, options.motion === 'town', st.M);
+            const w = walkMotion(options.leg ?? 1, options.motion === 'town', st.M, options.sway ?? 1);
             sim.motion = w.fn;
             phase = 'walk';
             sim.walkSteps = Math.round(w.len / DT);
-          } else if (options.motion !== 'none') sim.motion = shiftMotion(st.M);
+          } else if (options.motion !== 'none') sim.motion = shiftMotion(st.M, wobble);
           else phase = 'settle2';
         }
       } else if (phase === 'shift' || phase === 'walk') {
@@ -411,6 +485,11 @@ export function createSettle(snap, drop, options = {}) {
     get strain() {
       return liveS;
     },
+    /** The step a fragile item smashed at (-1: it did not), and the new item's index. */
+    get smashAt() {
+      return smashAt;
+    },
+    ni,
     /** Advance up to n steps; true when finished. */
     run(n = 1e9) {
       for (let i = 0; i < n; i++) if (stepOnce() || this.done) return true;
@@ -423,6 +502,84 @@ export function createSettle(snap, drop, options = {}) {
       return this.done;
     },
     /** The settled load (held), or the load at the verdict. */
+    final() {
+      return sim.snapshot();
+    },
+  };
+}
+
+/**
+ * Caravan's road: the loaded camel walks to the next town (no new item). Same interface as a settle: run(n), sim, strain,
+ * phase ('walk', then 'settle2'), verdict { r: 'held' | 'fell' | 'broke', fi, S, M, top }.
+ * options: T, leg, sway (the walk's sway, 1 = normal), grip, rails, wind.
+ */
+export function createWalk(snap, options = {}) {
+  const sim = new Sim(snap, { wind: options.wind, grip: options.grip, rails: options.rails });
+  const T = options.T ?? Infinity;
+  const st0 = sim.strain();
+  const w = walkMotion(options.leg ?? 1, true, st0.M, options.sway ?? 1);
+  sim.motion = w.fn;
+  const len = Math.round((w.len * (options.long ?? 1)) / DT);
+  if (options.long && options.long > 1) {
+    const base = w.fn;
+    const L = w.len;
+    sim.motion = (t) => base(t % L);
+  }
+  let phase = 'walk';
+  let phaseStep = 0;
+  let quietRun = 0;
+  let verdict = null;
+  let tumble = 0;
+  let liveS = st0.S;
+  function finish(r, fi) {
+    const st = sim.strain();
+    verdict = { r, at: sim.steps, fi, S: Math.round(st.S * 10) / 10, M: Math.round(st.M * 100) / 100, top: sim.top(), impact: 0, ni: -1, vin: 0, soft: false, smash: -1 };
+  }
+  function stepOnce() {
+    if (verdict && verdict.r !== 'fell') return true;
+    if (verdict) {
+      sim.step();
+      return ++tumble >= SETTLE.tumbleSteps;
+    }
+    sim.step();
+    phaseStep++;
+    liveS = sim.strain().S;
+    const fi = sim.fallen();
+    if (liveS > T) finish('broke', -1);
+    else if (fi >= 0) finish('fell', fi);
+    else if (phase === 'walk') {
+      if (phaseStep >= len) {
+        phase = 'settle2';
+        phaseStep = 0;
+        sim.motion = null;
+      }
+    } else {
+      quietRun = sim.quiet() ? quietRun + 1 : 0;
+      if (quietRun >= SETTLE.quietSteps || phaseStep >= SETTLE.settle2Max) finish('held', -1);
+    }
+    return !!verdict && verdict.r !== 'fell';
+  }
+  return {
+    sim,
+    frames: [],
+    smashAt: -1,
+    ni: -1,
+    get verdict() {
+      return verdict;
+    },
+    get done() {
+      return !!verdict && (verdict.r !== 'fell' || tumble >= SETTLE.tumbleSteps);
+    },
+    get phase() {
+      return phase;
+    },
+    get strain() {
+      return liveS;
+    },
+    run(n = 1e9) {
+      for (let i = 0; i < n; i++) if (stepOnce() || this.done) return true;
+      return this.done;
+    },
     final() {
       return sim.snapshot();
     },

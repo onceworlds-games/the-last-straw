@@ -40,11 +40,19 @@ export const ITEMS = [
   { key: 'bathtub', name: 'bathtub', kg: 14, mass: 14, w: 1.4, h: 0.6, rarity: 'rare', mat: 'enamel', rest: [0, Math.PI], parts: [box(1.2, 0.14, 0, -0.23), poly([[-0.7, 0.3], [-0.56, 0.3], [-0.48, -0.16], [-0.6, -0.3]]), poly([[0.56, 0.3], [0.7, 0.3], [0.6, -0.3], [0.48, -0.16]])] },
   { key: 'sofa', name: 'sofa', kg: 16, mass: 16, w: 1.6, h: 0.76, rarity: 'rare', mat: 'cloth', rest: [0, Math.PI / 2], parts: [box(1.6, 0.42, 0, -0.17), box(0.3, 0.76, 0.65, 0)] },
   { key: 'anvil', name: 'anvil', kg: 18, mass: 18, w: 0.72, h: 0.42, rarity: 'rare', mat: 'iron', rest: [0], parts: [box(0.46, 0.12, 0.1, -0.15), box(0.22, 0.2, 0.1, -0.01), box(0.5, 0.13, 0.1, 0.145), poly([[-0.15, 0.21], [-0.15, 0.08], [-0.36, 0.17]])] },
+  // newer stock: a wide base, a fragile one and one with a mind of its own
+  { key: 'hay', name: 'hay bale', kg: 5, mass: 5, w: 0.9, h: 0.42, rarity: 'common', mat: 'hay', friction: 1.1, restitution: 0, rest: [0, Math.PI / 2], parts: [box(0.9, 0.42)] },
+  { key: 'vase', name: 'vase', kg: 3, mass: 3, w: 0.36, h: 0.66, rarity: 'uncommon', mat: 'porcelain', fragile: true, restitution: 0.02, rest: [0, Math.PI / 2, -Math.PI / 2], parts: [ellipse(0.18, 0.21, 8, 0, -0.1), poly([[-0.07, 0.08], [0.07, 0.08], [0.1, 0.33], [-0.1, 0.33]])] },
+  { key: 'cat', name: 'cat', kg: 4, mass: 4, w: 0.58, h: 0.3, rarity: 'uncommon', mat: 'fur', walks: true, friction: 0.95, restitution: 0.05, angularDamping: 4, rest: [0], parts: [box(0.5, 0.26, 0.02, -0.02), circle(0.11, -0.2, 0.04)] },
 ];
 
 export const ITEM_BY_KEY = Object.fromEntries(ITEMS.map((it, i) => [it.key, i]));
 export const STRAW = ITEM_BY_KEY.straw;
 export const ANVIL = ITEM_BY_KEY.anvil;
+export const VASE = ITEM_BY_KEY.vase;
+export const CAT = ITEM_BY_KEY.cat;
+/** Items that join the cart in Caravan from a town on (everything else is there from the start). Matches have them all. */
+export const FROM_TOWN = { hay: 2, vase: 3, cat: 4 };
 
 /** A valid item index? */
 export const isItem = (i) => Number.isInteger(i) && i >= 0 && i < ITEMS.length;

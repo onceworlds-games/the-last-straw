@@ -29,14 +29,47 @@ const COMMON = ITEMS.map((it, i) => (it.rarity === 'common' ? i : -1)).filter((i
 /** The straw's draw weight: rare on a fresh camel, about a quarter of the cart deep in the red. */
 export const strawWeight = (S) => 4 + 60 * Math.min(1, Math.max(0, (S - 40) / 45));
 
-/** One new item from the cart. `easy`: common items only. `avoid`: not this one (no identical pair). */
-export function drawItem(rng, S, easy = false, avoid = -1) {
+// ---------------------------------------------------------------- round twists (from round 2 of a match)
+
+/**
+ * What makes a round different. wind: m/s² sideways in gusts during every settle; wobble: how much harder the camel shifts
+ * its weight; heavy: rare (heavy) things come up three times as often; mult: kg count this many times.
+ */
+export const TWISTS = {
+  gust: { name: 'Gusty', line: 'Wind pushes the load', wind: 2.2 },
+  wobble: { name: 'Wobbly', line: 'The camel fidgets', wobble: 2.2 },
+  heavy: { name: 'Heavy cart', line: 'Big things on the cart', heavy: true },
+  night: { name: 'Night market', line: 'Every kg counts twice', mult: 2 },
+};
+const TWIST_KEYS = Object.keys(TWISTS);
+
+/** The twist for round `round` of the match with this seed ('' for round 1). Never the same twist twice in a row. */
+export function twistFor(seed, round) {
+  if (!(round >= 2)) return '';
+  const pick = (r) => TWIST_KEYS[createRng(`${seed}:twist:${r}`).int(TWIST_KEYS.length)];
+  let k = pick(round);
+  if (round >= 3 && k === twistFor(seed, round - 1)) k = TWIST_KEYS[(TWIST_KEYS.indexOf(k) + 1) % TWIST_KEYS.length];
+  return k;
+}
+
+/** The settle options a twist adds (and the wind's direction for this round). */
+export function twistPhysics(twist, seed = '', round = 1) {
+  const t = TWISTS[twist];
+  if (!t) return {};
+  const out = {};
+  if (t.wind) out.wind = t.wind * (createRng(`${seed}:wind:${round}`).next() < 0.5 ? -1 : 1);
+  if (t.wobble) out.wobble = t.wobble;
+  return out;
+}
+
+/** One new item from the cart. `easy`: common items only. `avoid`: not this one (no identical pair). `heavy`: rare ×3. */
+export function drawItem(rng, S, easy = false, avoid = -1, heavy = false) {
   for (let tries = 0; tries < 2; tries++) {
     let pick = -1;
     if (easy) pick = COMMON[rng.int(COMMON.length)];
     else {
       let total = 0;
-      const weights = ITEMS.map((it) => (it.rarity === 'straw' ? strawWeight(S) : RARITY[it.rarity]));
+      const weights = ITEMS.map((it) => (it.rarity === 'straw' ? strawWeight(S) : RARITY[it.rarity] * (heavy && it.rarity === 'rare' ? 3 : 1)));
       for (const w of weights) total += w;
       let r = rng.next() * total;
       for (let i = 0; i < weights.length; i++) {
@@ -61,11 +94,14 @@ export const cartRng = (seed, rid, tn) => createRng(`${seed}:cart:${rid}:${tn}`)
  * A new round. `order`: seat ids in turn order (already rotated). The load starts empty.
  * The record holds everything a page draws and everything a new host needs.
  */
-export function newRound({ order, rid, round = 1 }) {
+export function newRound({ order, rid, round = 1, twist = '' }) {
   return {
     v: 1,
     rid,
     round,
+    twist: TWISTS[twist] ? twist : '',
+    streak: Object.fromEntries(order.map((id) => [id, 0])),
+    soft: Object.fromEntries(order.map((id) => [id, 0])),
     order: order.slice(),
     ti: 0,
     tn: 0,
@@ -106,13 +142,14 @@ export function beginTurn(d, { seed, now, turnMs }) {
   const rng = cartRng(seed, d.rid, d.tn);
   const easy = d.round === 1 && d.tn <= EASY_TURNS;
   const S = d.S / 10;
+  const heavy = !!TWISTS[d.twist]?.heavy;
   if (d.keep && isItem(d.offer[0]) && isItem(d.offer[1])) {
     // the last player was skipped: the same pair passes on
   } else if (isItem(d.carry)) {
-    d.offer = [d.carry, drawItem(rng, S, easy, d.carry)];
+    d.offer = [d.carry, drawItem(rng, S, easy, d.carry, heavy)];
   } else {
-    const a = drawItem(rng, S, easy);
-    d.offer = [a, drawItem(rng, S, easy, a)];
+    const a = drawItem(rng, S, easy, -1, heavy);
+    d.offer = [a, drawItem(rng, S, easy, a, heavy)];
   }
   // a camel that looks alarmed always gets offered a straw (the last straw is never far)
   if (d.mood >= 3 && d.offer[0] !== STRAW && d.offer[1] !== STRAW) d.offer[1] = STRAW;
@@ -163,9 +200,15 @@ export function applyDrop(d, by, drop, now) {
  * have played (`t0 + duration`).
  */
 export function storeVerdict(d, verdict, final, mood, steps) {
-  d.verdict = { r: verdict.r, at: verdict.at, fi: verdict.fi, S: Math.round(verdict.S * 10), mood, top: Math.round(verdict.top * 1000), steps, impact: Math.round((verdict.impact ?? 0) * 10) };
+  d.verdict = { r: verdict.r, at: verdict.at, fi: verdict.fi, S: Math.round(verdict.S * 10), mood, top: Math.round(verdict.top * 1000), steps, impact: Math.round((verdict.impact ?? 0) * 10), soft: verdict.soft ? 1 : 0, smash: Number.isInteger(verdict.smash) ? verdict.smash : -1, vin: Math.round((verdict.vin ?? 0) * 100) };
   d.final = final;
 }
+
+/** The bonus a soft landing earns: +1, +2, +3 for soft landings in a row by the same player (in a round or a run). */
+export const softBonus = (streak) => Math.max(0, Math.min(3, streak));
+
+/** kg one held item scores in this round: its weight (twice at the night market), nothing for a smashed one. */
+export const heldKg = (item, twist, smashed = false) => (smashed ? 0 : (ITEMS[item]?.kg ?? 0) * (TWISTS[twist]?.mult ?? 1));
 
 /** Milliseconds the settle takes to play (the keyframes), plus a beat to read it. */
 export const settleMs = (v) => Math.round(((v.steps ?? v.at) / 60) * 1000) + (v.r === 'held' ? 250 : 0);
@@ -180,12 +223,21 @@ export function applyVerdict(d, { seed, now, turnMs, alive = () => true }) {
   const by = d.drop?.by ?? placer(d);
   const item = d.drop?.item ?? -1;
   if (v.r === 'held') {
-    d.kg[by] = (d.kg[by] ?? 0) + (ITEMS[item]?.kg ?? 0);
+    const smashed = v.smash >= 0;
+    let bonus = 0;
+    if (d.streak) {
+      d.streak[by] = v.soft ? Math.min(3, (d.streak[by] ?? 0) + 1) : 0;
+      if (v.soft) {
+        bonus = softBonus(d.streak[by]);
+        if (d.soft) d.soft[by] = (d.soft[by] ?? 0) + 1;
+      }
+    }
+    d.kg[by] = (d.kg[by] ?? 0) + heldKg(item, d.twist, smashed) + bonus;
     d.snap = d.final ?? d.snap;
     d.S = v.S;
     d.mood = v.mood;
     d.top = v.top;
-    d.last = { r: 'held', by, item };
+    d.last = { r: 'held', by, item, soft: v.soft ? 1 : 0, bonus, smash: smashed ? 1 : 0 };
     if (d.tn >= MAX_TURNS) {
       d.step = 'over';
       d.last = { r: 'limit', by: '', item: -1 };
@@ -253,15 +305,19 @@ export function checkRecord(d) {
   if (typeof d.kg !== 'object' || !d.kg || Object.values(d.kg).some((v) => !isInt(v, 0, 100000))) return false;
   if (d.drop !== null && (typeof d.drop !== 'object' || !isItem(d.drop.item) || ![d.drop.x, d.drop.y, d.drop.a].every(Number.isFinite))) return false;
   if (d.final !== null && !checkSnap(d.final, 61)) return false;
+  if (d.twist !== undefined && d.twist !== '' && !TWISTS[d.twist]) return false;
+  for (const k of ['streak', 'soft']) if (d[k] !== undefined && (typeof d[k] !== 'object' || !d[k] || Object.values(d[k]).some((v) => !isInt(v, 0, 1000)))) return false;
   return true;
 }
 
 // ---------------------------------------------------------------- Caravan
 
-export const legLoads = (leg) => Math.min(10, 4 + leg);
 export const legBand = (leg) => [BAND[0] * 0.96 ** (leg - 1), BAND[1] * 0.96 ** (leg - 1)];
-/** The most kg a leg could hold (for checking shared daily entries): every load an anvil. */
-export const legMaxKg = (leg) => legLoads(leg) * 18;
+/**
+ * The most one town could pay (for checking shared daily entries): twelve anvils at the night market, the biggest load
+ * multiplier, the brink bonus, three hagglers and every landing soft.
+ */
+export const legMaxKg = () => 4400;
 export function maxKgByTown(town) {
   let kg = 0;
   for (let leg = 1; leg < town; leg++) kg += legMaxKg(leg);

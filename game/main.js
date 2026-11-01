@@ -1,8 +1,8 @@
 // Boot, the screens, input, and the glue between the room (or a local run) and the picture.
 
 import { ITEMS, STRAW, ANVIL } from './items.js';
-import { createSettle, hoverBox, clampHover, quantDrop, wrapAngle, landing, Sim, BAND, CAMEL } from './physics.js';
-import { turnKey, placer, heldItem, nextPlayer, moodOf, legBand, dayNumber, dailySeed, dailyBoard } from './rules.js';
+import { createSettle, hoverBox, clampHover, quantDrop, wrapAngle, landing, Sim, BAND, CAMEL, LANDING } from './physics.js';
+import { turnKey, placer, heldItem, nextPlayer, moodOf, legBand, dayNumber, dailySeed, dailyBoard, twistPhysics } from './rules.js';
 import { createNet, JOIN, nextSettingValue } from './net.js';
 import { createSolo } from './solo.js';
 import { createMatchView } from './match-view.js';
@@ -443,39 +443,50 @@ async function boot() {
   // ---------------------------------------------------------------- my hands
 
   function beginHand(snap, item, top, key) {
-    const box = hoverBox(item, 0, top);
     const a = ITEMS[item].rest[0] ?? 0;
     const b2 = hoverBox(item, a, top);
-    S.hand = { x: 0, y: b2.yDef, a, item, top, key };
+    S.hand = { x: 0, y: b2.yDef, a, item, top, key, sim: safe(() => new Sim(snap), null), floor: null };
     S.handKey = key;
     S.handSince = S.t;
     S.ghost = null;
-    S.ghostKey = '';
-    void box;
+  }
+
+  /** The lowest my hands may go here: just above where the item would first touch (a gentle set-down). */
+  function handFloor(h) {
+    if (!h.sim) return null;
+    const b = hoverBox(h.item, h.a, h.top);
+    const land = safe(() => landing(h.sim, h.item, clamp(h.x, b.xMin, b.xMax), b.yMax, h.a), null);
+    h.land = land;
+    return land ? land.y : null;
   }
 
   function clampHand() {
     const h = S.hand;
     if (!h) return;
-    const c = clampHover(h.item, h.x, h.y, h.a, h.top);
+    h.floor = handFloor(h);
+    const c = clampHover(h.item, h.x, h.y, h.a, h.top, h.floor);
     h.x = c.x;
     h.y = c.y;
   }
 
-  /** Where my held item would first touch: a world built from the load once per turn. */
-  function ghostOf(snap, key) {
+  /** Where my held item would first touch, and how gently (the line turns gold when it would be a soft landing). */
+  function ghostOf() {
     const h = S.hand;
-    if (!h) return null;
-    if (S.ghostKey !== key) {
-      S.ghostKey = key;
-      S.ghostSim = safe(() => new Sim(snap), null);
+    if (!h || !h.sim) return null;
+    if (h.floor === null || h.landX !== h.x || h.landA !== h.a) {
+      h.floor = handFloor(h);
+      h.landX = h.x;
+      h.landA = h.a;
     }
-    if (!S.ghostSim) return null;
-    const land = safe(() => landing(S.ghostSim, h.item, h.x, h.y, h.a), null);
+    const land = h.land;
     if (!land) return null;
     if (S.lastGhostWhat && S.lastGhostWhat !== land.what) audio.blip();
     S.lastGhostWhat = land.what;
-    return { item: h.item, x: h.x, y: land.y, a: h.a, fromY: h.y, color: land.what === 'ground' ? PAL.rose : PAL.turq };
+    const fall = Math.max(0, h.y - land.y);
+    const soft = land.what !== 'ground' && Math.sqrt(2 * 10 * fall) < LANDING.soft - 0.15 && !!ITEMS[h.item]?.kg;
+    if (soft && !S.wasSoft) audio.select?.();
+    S.wasSoft = soft;
+    return { item: h.item, x: h.x, y: land.y, a: h.a, fromY: h.y, color: land.what === 'ground' ? PAL.rose : soft ? PAL.gold : PAL.turq, soft, fragile: !!ITEMS[h.item]?.fragile };
   }
 
   function turnHand(dir) {
@@ -538,9 +549,10 @@ async function boot() {
     } else {
       const d = p.d;
       const item = heldItem(d);
-      const q = quantDrop(clampHover(item, h.x, h.y, wrapAngle(h.a), d.top / 1000));
+      const q = quantDrop(clampHover(item, h.x, h.y, wrapAngle(h.a), d.top / 1000, h.floor));
       S.net.drop(turnKey(d), q);
-      S.pred = { k: turnKey(d), runner: createSettle(d.snap, { item, ...q }, { T: Infinity, keyframes: false }), steps: 0, wStart: null, at: S.t, item, rid: d.rid, tn: d.tn, myDrop: { ...q, item } };
+      const tw = twistPhysics(d.twist, S.net.room.match?.seed ?? 0, d.round);
+      S.pred = { k: turnKey(d), runner: createSettle(d.snap, { item, ...q }, { T: Infinity, keyframes: false, ...tw }), steps: 0, wStart: null, at: S.t, item, rid: d.rid, tn: d.tn, myDrop: { ...q, item } };
       S.play = { k: turnKey(d), s: 0, lastS: null, contact: false };
       audio.whup();
       audio.whistle(ITEMS[item].kg);

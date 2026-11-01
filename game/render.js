@@ -778,7 +778,7 @@ function placeItem(ctx, lw, it, shade) {
   ctx.translate(it.x, it.y);
   ctx.rotate(it.a);
   if (it.sx || it.sy) ctx.scale(1 + (it.sx ?? 0), 1 + (it.sy ?? 0));
-  drawItem(ctx, it.item, lw, { flash: it.flash, outline: it.outline });
+  drawItem(ctx, it.item, lw, { flash: it.flash, outline: it.outline, angle: it.a });
   ctx.restore();
 }
 
@@ -880,7 +880,7 @@ function drawHeld(ctx, lw, h, cam, R) {
     ctx.save();
     ctx.translate(h.x, h.y);
     ctx.rotate(h.a);
-    drawItem(ctx, h.item, lw, {});
+    drawItem(ctx, h.item, lw, { angle: h.a });
     ctx.restore();
   }
   drawHands(ctx, lw, left, right, Math.max(topY, hy + 2), h.who, h.open ?? 0);

@@ -1,8 +1,8 @@
 // The match over the room: the SDK's helpers run the lobby, rounds and results; the host's page runs the turns, the bots and
 // every settle's physics, and sends the motion as keyframes. Every other page draws what the host decided.
 
-import { newRound, beginTurn, applyPick, applyDrop, storeVerdict, applyVerdict, skipTurn, roundPoints, roundOrder, drawThreshold, moodOf, heldItem, settleMs, checkRecord, turnKey, placer } from './rules.js';
-import { createSettle, encodeFrames, decodeFrames, clampHover, quantDrop, hoverBox, wrapAngle } from './physics.js';
+import { newRound, beginTurn, applyPick, applyDrop, storeVerdict, applyVerdict, skipTurn, roundPoints, roundOrder, drawThreshold, moodOf, heldItem, settleMs, checkRecord, turnKey, placer, twistFor, twistPhysics } from './rules.js';
+import { createSettle, encodeFrames, decodeFrames, clampHover, quantDrop, hoverBox, wrapAngle, hoverFloor } from './physics.js';
 import { createPlanner, botPick, personaOf, carryPath, BOT_NAMES, checkPath } from './bots.js';
 import { createRng } from './rng.js';
 import { isItem } from './items.js';
@@ -62,7 +62,7 @@ export function createNet(room, lib, hooks = {}) {
     data: (v) => v === null || checkRecord(v) || 'not a round record',
     startRound(m) {
       const ids = m.seats.filter((s) => !s.left).map((s) => s.id);
-      const d = newRound({ order: roundOrder(ids, m.round), rid: m.roundId, round: m.round });
+      const d = newRound({ order: roundOrder(ids, m.round), rid: m.roundId, round: m.round, twist: hooks.twists === false ? '' : twistFor(seed(), m.round) });
       const T = drawThreshold(createRng(`${seed()}:T:${m.roundId}:${Math.random()}`), m.round === 1);
       Tmem = { rid: d.rid, T };
       try {
@@ -148,11 +148,13 @@ export function createNet(room, lib, hooks = {}) {
     const d = structuredClone(match.data);
     const item = heldItem(d);
     if (!isItem(item)) return;
-    const c = clampHover(item, raw.x, raw.y, wrapAngle(raw.a), d.top / 1000);
+    const a = wrapAngle(raw.a);
+    const floor = hoverFloor(d.snap, item, raw.x, a, d.top / 1000);
+    const c = clampHover(item, raw.x, raw.y, a, d.top / 1000, floor);
     const q = quantDrop(c);
     if (!applyDrop(d, by, q, room.matchNow())) return;
     match.setData(d);
-    const runner = createSettle(d.snap, { item, ...q }, { T: hostT(d) });
+    const runner = createSettle(d.snap, { item, ...q }, { T: hostT(d), ...twistPhysics(d.twist, seed(), d.round) });
     runners.set(turnKey(d), { runner, sent: 0, k: turnKey(d) });
     pump(d);
   }
@@ -163,7 +165,7 @@ export function createNet(room, lib, hooks = {}) {
     if (!r) {
       // a new host mid-settle: simulate the same drop again
       if (!d.drop) return;
-      r = { runner: createSettle(d.snap, { item: d.drop.item, x: d.drop.x, y: d.drop.y, a: d.drop.a }, { T: hostT(d) }), sent: 0, k };
+      r = { runner: createSettle(d.snap, { item: d.drop.item, x: d.drop.x, y: d.drop.y, a: d.drop.a }, { T: hostT(d), ...twistPhysics(d.twist, seed(), d.round) }), sent: 0, k };
       runners.set(k, r);
     }
     const done = r.runner.runFor(6);
