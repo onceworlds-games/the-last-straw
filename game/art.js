@@ -1235,7 +1235,7 @@ const FUR = {
   jerboa: { fill: '#F3DCC0', dark: '#D9B892', claw: PAL.rose },
 };
 
-function sleevePattern(ctx, sleeve, color, dark, x0, y0, w, h, lw) {
+export function sleevePattern(ctx, sleeve, color, dark, x0, y0, w, h, lw) {
   ctx.fillStyle = sleeve === 5 ? PAL.gold : color;
   ctx.fillRect(x0, y0, w, h);
   ctx.save();
@@ -1280,59 +1280,208 @@ function star(ctx, x, y, r) {
  */
 export function drawHands(ctx, lw, left, right, topY, who, open = 0) {
   for (const [hx, hy, side] of [[left.x, left.y, -1], [right.x, right.y, 1]]) {
-    const ox = side * open * 0.12;
-    const x = hx + ox;
-    const y = hy + open * 0.1;
-    const w = 0.16;
-    ctx.lineWidth = lw * 2;
-    ctx.strokeStyle = PAL.ink;
-    if (who.kind === 'bot') {
-      const f = FUR[who.fur] ?? FUR.fennec;
-      ctx.fillStyle = f.fill;
-      ctx.fillRect(x - w / 2, y + 0.05, w, topY - y);
-      ctx.strokeRect(x - w / 2, y + 0.05, w, topY - y);
-      ctx.fillStyle = f.dark;
-      ctx.fillRect(x - w / 2 + 0.02, y + 0.05, 0.03, topY - y);
-      ctx.beginPath();
-      ctx.ellipse(x, y + 0.02, 0.1, 0.085, 0, 0, Math.PI * 2);
-      ctx.fillStyle = f.fill;
-      ctx.fill();
-      ctx.stroke();
-      ctx.fillStyle = f.claw;
-      for (let k = -1; k <= 1; k++) {
-        ctx.beginPath();
-        ctx.moveTo(x + k * 0.05 - 0.018, y - 0.04);
-        ctx.lineTo(x + k * 0.05 + side * 0.01, y - 0.1 + open * 0.04);
-        ctx.lineTo(x + k * 0.05 + 0.018, y - 0.04);
-        ctx.closePath();
-        ctx.fill();
-        ctx.stroke();
-      }
-    } else {
-      const seat = SEATS[who.seat % SEATS.length];
-      sleevePattern(ctx, who.sleeve ?? 0, seat.color, seat.dark, x - w / 2 - 0.01, y + 0.1, w + 0.02, topY - y, lw);
-      ctx.strokeRect(x - w / 2 - 0.01, y + 0.1, w + 0.02, topY - y);
-      // cuff
-      ctx.fillStyle = PAL.bone;
-      ctx.fillRect(x - w / 2 - 0.02, y + 0.06, w + 0.04, 0.06);
-      ctx.strokeRect(x - w / 2 - 0.02, y + 0.06, w + 0.04, 0.06);
-      // glove
-      ctx.beginPath();
-      ctx.moveTo(x - 0.075, y + 0.06);
-      ctx.lineTo(x - 0.08, y - 0.06);
-      ctx.quadraticCurveTo(x, y - 0.13 + open * 0.05, x + 0.08, y - 0.06);
-      ctx.lineTo(x + 0.075, y + 0.06);
-      ctx.closePath();
-      ctx.fillStyle = PAL.bone;
-      ctx.fill();
-      ctx.stroke();
-      // thumb toward the item
-      ctx.beginPath();
-      ctx.ellipse(x - side * 0.08, y - 0.01, 0.03, 0.055, side * 0.5, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.stroke();
-    }
+    const e = open * open * (3 - 2 * open);
+    const x = hx + side * e * 0.14;
+    const y = hy + e * 0.12;
+    ctx.save();
+    ctx.lineJoin = 'round';
+    ctx.lineCap = 'round';
+    if (who.kind === 'bot') drawPaw(ctx, lw, x, y, side, topY, FUR[who.fur] ?? FUR.fennec, e);
+    else drawGlove(ctx, lw, x, y, side, topY, who, e);
+    ctx.restore();
   }
+}
+
+/** One gloved hand (a swatch in the Stable): the wrist at (x, y), the arm up to topY. */
+export function drawGloveAt(ctx, lw, x, y, topY, who, open = 0) {
+  ctx.save();
+  ctx.lineJoin = 'round';
+  ctx.lineCap = 'round';
+  drawGlove(ctx, lw, x, y, 1, topY, who, open);
+  ctx.restore();
+}
+
+/** An arm from the wrist (x, y) up to the top of the screen, leaning out a little, with an elbow's bend. */
+function armPath(x, y, side, topY, wWrist, wTop) {
+  const len = Math.max(0.2, topY - y);
+  const sx = x + side * Math.min(0.45, len * 0.14);
+  const hw = wWrist / 2, tw = wTop / 2;
+  const my = y + len * 0.42;
+  const mx = x + side * 0.05;
+  const p = new Path2D();
+  p.moveTo(x - hw, y);
+  p.quadraticCurveTo(mx - hw - 0.025, my, sx - tw, topY + 0.3);
+  p.lineTo(sx + tw, topY + 0.3);
+  p.quadraticCurveTo(mx + hw + 0.025, my, x + hw, y);
+  p.closePath();
+  return p;
+}
+
+/** The round shading over an arm: dark on the side away from the light, a glint on the other. */
+function armShade(ctx, x, y, topY, w) {
+  const g = ctx.createLinearGradient(x - w, 0, x + w, 0);
+  g.addColorStop(0, 'rgba(255,248,230,0.22)');
+  g.addColorStop(0.35, 'rgba(255,248,230,0)');
+  g.addColorStop(0.7, 'rgba(28,15,46,0.06)');
+  g.addColorStop(1, 'rgba(28,15,46,0.32)');
+  ctx.fillStyle = g;
+  ctx.fillRect(x - 1, y - 0.2, 2, topY - y + 1);
+}
+
+/** A finger (or toe) as a capsule from (x, y) at angle a, `len` long. */
+function digit(ctx, lw, x, y, a, len, wid, fill) {
+  const ex = x + Math.cos(a) * len, ey = y + Math.sin(a) * len;
+  ctx.strokeStyle = PAL.ink;
+  ctx.lineWidth = wid + lw * 3.6;
+  ctx.beginPath();
+  ctx.moveTo(x, y);
+  ctx.lineTo(ex, ey);
+  ctx.stroke();
+  ctx.strokeStyle = fill;
+  ctx.lineWidth = wid;
+  ctx.stroke();
+  return { x: ex, y: ey };
+}
+
+function drawGlove(ctx, lw, x, y, side, topY, who, e) {
+  const seat = SEATS[who.seat % SEATS.length];
+  const arm = armPath(x, y + 0.08, side, topY, 0.15, 0.21);
+  ctx.save();
+  ctx.clip(arm);
+  sleevePattern(ctx, who.sleeve ?? 0, seat.color, seat.dark, x - 0.7, y, 1.4, topY - y + 0.6, lw);
+  armShade(ctx, x, y, topY, 0.14);
+  ctx.restore();
+  ctx.lineWidth = lw * 2.2;
+  ctx.strokeStyle = PAL.ink;
+  ctx.stroke(arm);
+  // fingers wrap over the item's edge (inward), or splay down and out as the hand lets go
+  const inward = side > 0 ? Math.PI : 0;
+  const down = -Math.PI / 2;
+  const glove = '#FFF3E0';
+  for (let k = 0; k < 4; k++) {
+    const fy = y + 0.035 - k * 0.032;
+    const closed = inward + (side > 0 ? 1 : -1) * (0.25 + k * 0.08);
+    const opened = down + side * (0.35 + k * 0.12);
+    const a = closed + (opened - closed) * e;
+    digit(ctx, lw, x - side * 0.045, fy, a, k === 3 ? 0.06 : 0.078, 0.034, glove);
+  }
+  // the back of the hand
+  const palm = new Path2D();
+  palm.ellipse(x, y - 0.005, 0.085, 0.078, 0, 0, Math.PI * 2);
+  ctx.fillStyle = glove;
+  ctx.fill(palm);
+  ctx.lineWidth = lw * 2;
+  ctx.strokeStyle = PAL.ink;
+  ctx.stroke(palm);
+  ctx.save();
+  ctx.clip(palm);
+  ctx.fillStyle = 'rgba(28,15,46,0.12)';
+  ctx.beginPath();
+  ctx.ellipse(x + side * 0.05, y - 0.03, 0.08, 0.08, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+  // knuckle stitches
+  ctx.strokeStyle = 'rgba(28,15,46,0.35)';
+  ctx.lineWidth = lw * 1.2;
+  ctx.beginPath();
+  for (let k = 0; k < 3; k++) {
+    const kx = x - side * 0.035, ky = y + 0.02 - k * 0.032;
+    ctx.moveTo(kx, ky);
+    ctx.lineTo(kx - side * 0.022, ky - 0.004);
+  }
+  ctx.stroke();
+  // the thumb on top
+  digit(ctx, lw, x - side * 0.02, y + 0.05, (side > 0 ? Math.PI : 0) + side * (-0.5 + e * 1.2), 0.07, 0.036, glove);
+  // the cuff
+  const cuff = new Path2D();
+  cuff.moveTo(x - 0.09, y + 0.07);
+  cuff.quadraticCurveTo(x, y + 0.05, x + 0.09, y + 0.07);
+  cuff.lineTo(x + 0.085, y + 0.13);
+  cuff.quadraticCurveTo(x, y + 0.115, x - 0.085, y + 0.13);
+  cuff.closePath();
+  ctx.fillStyle = seat.dark;
+  ctx.fill(cuff);
+  ctx.lineWidth = lw * 2;
+  ctx.strokeStyle = PAL.ink;
+  ctx.stroke(cuff);
+  ctx.strokeStyle = 'rgba(255,240,217,0.55)';
+  ctx.lineWidth = lw * 1.2;
+  ctx.setLineDash([lw * 3, lw * 3]);
+  ctx.beginPath();
+  ctx.moveTo(x - 0.075, y + 0.1);
+  ctx.quadraticCurveTo(x, y + 0.085, x + 0.075, y + 0.1);
+  ctx.stroke();
+  ctx.setLineDash([]);
+}
+
+function drawPaw(ctx, lw, x, y, side, topY, f, e) {
+  const arm = armPath(x, y + 0.06, side, topY, 0.15, 0.2);
+  ctx.fillStyle = f.fill;
+  ctx.fill(arm);
+  ctx.save();
+  ctx.clip(arm);
+  // fur: soft stripes down the arm
+  ctx.strokeStyle = f.dark;
+  ctx.globalAlpha = 0.45;
+  ctx.lineWidth = lw * 2;
+  ctx.beginPath();
+  for (let yy = y + 0.12; yy < topY + 0.3; yy += 0.11) {
+    ctx.moveTo(x - 0.2, yy);
+    ctx.quadraticCurveTo(x, yy - 0.035, x + 0.2, yy + 0.01);
+  }
+  ctx.stroke();
+  ctx.globalAlpha = 1;
+  armShade(ctx, x, y, topY, 0.14);
+  ctx.restore();
+  ctx.lineWidth = lw * 2.2;
+  ctx.strokeStyle = PAL.ink;
+  ctx.stroke(arm);
+  // tufts at the wrist
+  ctx.fillStyle = f.fill;
+  ctx.beginPath();
+  for (let k = -2; k <= 2; k++) {
+    const tx = x + k * 0.032;
+    ctx.moveTo(tx - 0.02, y + 0.075);
+    ctx.lineTo(tx + side * 0.008, y + 0.03);
+    ctx.lineTo(tx + 0.02, y + 0.075);
+  }
+  ctx.fill();
+  ctx.stroke();
+  // toes wrapping the edge, claws at their tips
+  const inward = side > 0 ? Math.PI : 0;
+  const down = -Math.PI / 2;
+  for (let k = 0; k < 3; k++) {
+    const fy = y + 0.02 - k * 0.04;
+    const closed = inward + (side > 0 ? 1 : -1) * (0.3 + k * 0.1);
+    const opened = down + side * (0.3 + k * 0.15);
+    const a = closed + (opened - closed) * e;
+    const tip = digit(ctx, lw, x - side * 0.04, fy, a, 0.07, 0.042, f.fill);
+    ctx.fillStyle = f.claw;
+    ctx.beginPath();
+    ctx.moveTo(tip.x + Math.cos(a + 1.2) * 0.016, tip.y + Math.sin(a + 1.2) * 0.016);
+    ctx.lineTo(tip.x + Math.cos(a) * 0.04, tip.y + Math.sin(a) * 0.04);
+    ctx.lineTo(tip.x + Math.cos(a - 1.2) * 0.016, tip.y + Math.sin(a - 1.2) * 0.016);
+    ctx.closePath();
+    ctx.fill();
+    ctx.lineWidth = lw * 1.4;
+    ctx.strokeStyle = PAL.ink;
+    ctx.stroke();
+  }
+  const paw = new Path2D();
+  paw.ellipse(x, y, 0.088, 0.08, 0, 0, Math.PI * 2);
+  ctx.fillStyle = f.fill;
+  ctx.fill(paw);
+  ctx.lineWidth = lw * 2;
+  ctx.strokeStyle = PAL.ink;
+  ctx.stroke(paw);
+  ctx.save();
+  ctx.clip(paw);
+  ctx.fillStyle = f.dark;
+  ctx.globalAlpha = 0.5;
+  ctx.beginPath();
+  ctx.ellipse(x + side * 0.05, y - 0.035, 0.08, 0.07, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
 }
 
 /** The seat symbol (screen space). */

@@ -14,6 +14,8 @@ import { buildHeap } from './scene.js';
 import { foldPose } from './camel.js';
 import { PAL } from './art.js';
 import { text, slab, drawSign, drawHint, signpost } from './ui.js';
+import { drawDayBoard } from './stable.js';
+import { goalsToday, levelOf } from './progress.js';
 import * as audio from './audio.js';
 
 const ow = window.onceworlds;
@@ -82,7 +84,7 @@ export function createMatchView(app) {
     audio.setMusic('menu', 0);
     S.camel.stand = Math.max(0, S.camel.stand - dt / 1.6);
     sc.camel.fold = S.camel.stand;
-    sc.needle = 0;
+    sc.needle = null;
     // tags: who's here, and the animals that will sit in the empty seats (faded)
     const tags = [];
     if (m && room) {
@@ -111,8 +113,15 @@ export function createMatchView(app) {
         const P = app.L.posts;
         const day = today();
         const dkg = S.daily && S.daily.day === day ? `${S.daily.kg} kg today` : 'New';
-        signpost(ctx, P.caravan, 'Caravan', S.profile.best > 0 ? `Best ${S.profile.best} kg` : 'Go solo', { post: app.L.portrait ? 0 : 18 });
+        const prof = S.profile;
+        const goals = goalsToday(prof, day);
+        const doneN = goals.list.filter((g) => g.done).length;
+        if (P.board) drawDayBoard(ctx, P.board, { profile: prof, day, t: S.t, hang: true, popId: S.goalPop?.i, popAge: S.goalPop ? S.t - S.goalPop.at : null });
+        signpost(ctx, P.stable, 'Stable', P.board ? (S.fresh.size ? 'New look' : `Level ${levelOf(prof.xp).level}`) : `Lv ${levelOf(prof.xp).level} · ${doneN}/3 goals`, { post: 0, color: S.fresh.size ? '#FFE7A3' : undefined });
+        signpost(ctx, P.caravan, 'Caravan', prof.best > 0 ? `Best ${prof.best} kg` : 'Go solo', { post: 0 });
         signpost(ctx, P.daily, 'Daily cart', dkg, { post: app.L.portrait ? 0 : Math.max(0, app.L.gy - P.daily.y - P.daily.h) });
+        if (P.board) hits.add(P.board, 'stable');
+        hits.add(P.stable, 'stable');
         hits.add(P.caravan, 'caravan');
         hits.add(P.daily, 'daily');
       }
@@ -520,6 +529,7 @@ export function createMatchView(app) {
             }
           }
           if (d.top >= (CAMEL.trayTop + 3) * 1000) award('high-rise');
+          app.myLoadHeld?.({ item: d.last.item, soft: !!d.last.soft && d.last.bonus > 0, smash: !!d.last.smash });
         }
       }
       seen.k = k;
@@ -652,6 +662,7 @@ export function createMatchView(app) {
       award('survivor');
       safe(() => ow?.leaderboards?.submit('wins', p.wins)?.catch?.(() => {}));
     }
+    app.matchPlayed?.(mine?.place === 1);
     saveProfile();
   }
 

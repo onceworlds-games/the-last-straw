@@ -140,13 +140,23 @@ export function layout(W, H, reserved, { lobby = false, tags = 1 } = {}) {
   const postW = phone ? 150 : 190;
   const postH = phone ? 58 : 66;
   const posts = {
+    stable: { x: W - postW - 12, y: gy - postH * 3 - 42, w: postW, h: postH },
     caravan: { x: W - postW - 12, y: gy - postH * 2 - 30, w: postW, h: postH },
     daily: { x: W - postW - 12, y: gy - postH - 18, w: postW, h: postH },
   };
   if (portrait) {
-    posts.caravan = { x: W - postW - 10, y: cart.y + 4, w: postW, h: postH };
-    posts.daily = { x: W - postW - 10, y: cart.y + postH + 14, w: postW, h: postH };
+    const py = (cart.y - 10) - (postH + 10) * 3;
+    posts.stable = { x: W - postW - 10, y: py, w: postW, h: postH };
+    posts.caravan = { x: W - postW - 10, y: py + postH + 10, w: postW, h: postH };
+    posts.daily = { x: W - postW - 10, y: py + (postH + 10) * 2, w: postW, h: postH };
   }
+  // the day's board above the posts, when there's room for it
+  const boardW = Math.max(postW, Math.min(270, W * 0.24));
+  const boardTop = rope.y + rope.h + 14;
+  let board = { x: W - boardW - 12, y: boardTop, w: boardW, h: posts.stable.y - 16 - boardTop };
+  if (portrait || board.h < 150) board = null;
+  else board.h = Math.min(board.h, 210);
+  posts.board = board;
 
   return { W, H, rope, dial, cart, stage, gy, buttons, posts, portrait, phone, compact, strip, menu, center: { x: W / 2, y: top + (gy - top) * 0.36 } };
 }
@@ -805,11 +815,33 @@ export function drawCart(ctx, R, o, t) {
   // canopy posts and a striped awning
   const awY = y + 4;
   for (const px of [x + 16, x + w - 16]) {
-    ctx.fillStyle = PAL.woodDark;
-    ctx.fillRect(px - 4, awY + 10, 8, bedY - awY - 10);
+    const post = rr(new Path2D(), px - 5, awY + 10, 10, bedY - awY - 8, 3);
+    plank(ctx, post, { x: px - 5, y: awY + 10, w: 10, h: bedY - awY - 8 }, DARK_WOOD);
     ctx.strokeStyle = PAL.ink;
     ctx.lineWidth = 2;
-    ctx.strokeRect(px - 4, awY + 10, 8, bedY - awY - 10);
+    ctx.stroke(post);
+  }
+  // a lantern hanging from the awning
+  {
+    const lx = x + w - 30, ly = awY + 36 + Math.sin(t * 1.7) * 1.5;
+    ctx.strokeStyle = PAL.ink;
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(lx, awY + 24);
+    ctx.lineTo(lx, ly - 8);
+    ctx.stroke();
+    const g = ctx.createRadialGradient(lx, ly, 1, lx, ly, 26);
+    g.addColorStop(0, 'rgba(255,200,69,0.35)');
+    g.addColorStop(1, 'rgba(255,200,69,0)');
+    ctx.fillStyle = g;
+    ctx.fillRect(lx - 26, ly - 26, 52, 52);
+    const lp = rr(new Path2D(), lx - 6, ly - 8, 12, 16, 4);
+    ctx.fillStyle = PAL.gold;
+    ctx.fill(lp);
+    ctx.lineWidth = 2;
+    ctx.stroke(lp);
+    ctx.fillStyle = '#FFF4C8';
+    ctx.fillRect(lx - 2, ly - 4, 4, 8);
   }
   const aw = new Path2D();
   aw.moveTo(x + 4, awY + 22);
@@ -832,10 +864,10 @@ export function drawCart(ctx, R, o, t) {
   ctx.stroke(aw);
   // the bed
   const bed = rr(new Path2D(), x, bedY, w, bedH, 4);
-  ctx.fillStyle = PAL.wood ?? '#E39A57';
-  ctx.fill(bed);
-  ctx.fillStyle = PAL.woodDark;
-  ctx.fillRect(x, bedY + bedH * 0.62, w, bedH * 0.38);
+  plank(ctx, bed, { x, y: bedY, w, h: bedH }, LIGHT_WOOD);
+  ctx.fillStyle = 'rgba(110,58,28,0.55)';
+  ctx.fillRect(x + 2, bedY + bedH * 0.66, w - 4, bedH * 0.3);
+  ctx.strokeStyle = PAL.ink;
   ctx.lineWidth = 2.5;
   ctx.stroke(bed);
   for (let k = 1; k < 4; k++) {
@@ -845,33 +877,52 @@ export function drawCart(ctx, R, o, t) {
     ctx.lineWidth = 1.5;
     ctx.stroke();
   }
-  // wheels
+  nails(ctx, [[x + 8, bedY + bedH * 0.35], [x + w - 8, bedY + bedH * 0.35]], 2.2);
+  // wheels: an iron tyre, a wooden rim, turned spokes, a brass hub
   const spin = (o.roll ?? 0) * 6;
   for (const wx of [x + w * 0.22, x + w * 0.78]) {
     const wy = y + h - wheelR - 2;
     ctx.beginPath();
     ctx.arc(wx, wy, wheelR, 0, Math.PI * 2);
-    ctx.fillStyle = PAL.woodDark;
+    ctx.fillStyle = '#3A2B4A';
     ctx.fill();
     ctx.lineWidth = 3;
+    ctx.strokeStyle = PAL.ink;
     ctx.stroke();
     ctx.beginPath();
-    ctx.arc(wx, wy, wheelR * 0.7, 0, Math.PI * 2);
-    ctx.fillStyle = PAL.wood ?? '#E39A57';
+    ctx.arc(wx, wy, wheelR * 0.84, 0, Math.PI * 2);
+    ctx.fillStyle = DARK_WOOD.face;
     ctx.fill();
     ctx.lineWidth = 2;
     ctx.stroke();
     ctx.beginPath();
-    for (let k = 0; k < 6; k++) {
-      const a = spin + (k / 6) * Math.PI * 2;
-      ctx.moveTo(wx, wy);
+    ctx.arc(wx, wy, wheelR * 0.66, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(28,15,46,0.35)';
+    ctx.fill();
+    ctx.stroke();
+    for (let k = 0; k < 8; k++) {
+      const a = spin + (k / 8) * Math.PI * 2;
+      ctx.beginPath();
+      ctx.moveTo(wx + Math.cos(a) * 4, wy + Math.sin(a) * 4);
       ctx.lineTo(wx + Math.cos(a) * wheelR * 0.7, wy + Math.sin(a) * wheelR * 0.7);
+      ctx.strokeStyle = PAL.ink;
+      ctx.lineWidth = 5;
+      ctx.stroke();
+      ctx.strokeStyle = LIGHT_WOOD.face;
+      ctx.lineWidth = 2.6;
+      ctx.stroke();
     }
+    ctx.strokeStyle = 'rgba(255,240,210,0.35)';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.arc(wx, wy, wheelR - 2, Math.PI * 1.1, Math.PI * 1.6);
     ctx.stroke();
     ctx.beginPath();
-    ctx.arc(wx, wy, 4, 0, Math.PI * 2);
+    ctx.arc(wx, wy, 5, 0, Math.PI * 2);
     ctx.fillStyle = PAL.gold;
     ctx.fill();
+    ctx.strokeStyle = PAL.ink;
+    ctx.lineWidth = 2;
     ctx.stroke();
   }
 
@@ -888,7 +939,24 @@ export function drawCart(ctx, R, o, t) {
       const cy = bedY - bayH / 2 - 4;
       const box = { x: cx - bayW / 2, y: cy - bayH / 2 - 6, w: bayW, h: bayH + 34, i };
       boxes.push(box);
+      if (item >= 0 && o.hide === i && o.pick && o.pick.i === i && o.pick.age < 0.3) {
+        // the picked item lifts off the cart toward the hands
+        const u = o.pick.age / 0.3;
+        ctx.save();
+        ctx.globalAlpha = 1 - u;
+        ctx.translate(cx, cy - u * 70);
+        ctx.scale(1 + u * 0.3, 1 + u * 0.3);
+        itemInBox(ctx, o.pick.item, 0, 0, bayW * 0.86, bayH * 0.86, { cap: bayW / 0.85 });
+        ctx.restore();
+      }
       if (item < 0 || o.hide === i) continue;
+      // a new offer rolls in from the right, one after the other
+      const ua = Math.max(0, Math.min(1, ((o.age ?? 9) - i * 0.08) / 0.38));
+      const xa = ua - 1;
+      const slide = (1 - (1 + 2.2 * xa * xa * xa + 1.2 * xa * xa)) * (w * 0.7);
+      if (ua <= 0) continue;
+      ctx.save();
+      ctx.translate(slide, 0);
       const lift = o.sel === i ? 6 + Math.sin(t * 6) * 2 : 0;
       if (o.big) {
         // a lit pick target
@@ -919,7 +987,22 @@ export function drawCart(ctx, R, o, t) {
       ctx.lineWidth = 2;
       ctx.stroke(tg);
       text(ctx, weightLabel(ITEMS[item]), cx, ty + 14, { size: 20, display: true, weight: 900, color: PAL.ink, outline: false });
-      if (o.keys) text(ctx, String(i + 1), box.x + 12, box.y + 14, { size: 14, color: PAL.ink, outline: false, weight: 800 });
+      if (o.keys && o.big) {
+        // its key, as a keycap
+        const kc = rr(new Path2D(), box.x + 4, box.y + 4, 22, 22, 5);
+        ctx.fillStyle = PAL.ink;
+        ctx.save();
+        ctx.translate(0, 2);
+        ctx.fill(kc);
+        ctx.restore();
+        ctx.fillStyle = PAL.bone;
+        ctx.fill(kc);
+        ctx.lineWidth = 2;
+        ctx.strokeStyle = PAL.ink;
+        ctx.stroke(kc);
+        text(ctx, String(i + 1), box.x + 15, box.y + 15.5, { size: 14, color: PAL.ink, outline: false, weight: 900 });
+      }
+      ctx.restore();
     }
   }
   // the hourglass on the right post

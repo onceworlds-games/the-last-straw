@@ -914,7 +914,7 @@ export function starShape(ctx, x, y, r, fill, stroke, lw) {
 }
 
 /** Hats, in head space (the poll at 0, 0; the muzzle toward -x). */
-function drawHat(ctx, hat, lw, ink, t) {
+export function drawHat(ctx, hat, lw, ink, t) {
   ctx.save();
   ctx.lineWidth = lw * 2;
   ctx.strokeStyle = ink;

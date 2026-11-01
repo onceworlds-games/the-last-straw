@@ -6,13 +6,15 @@ import { turnKey, placer, heldItem, nextPlayer, moodOf, dayNumber, dailySeed, da
 import { RUN, payout, townOrder, runBand, runPhysics, perkCount } from './caravan.js';
 import { biomeFor, BIOMES } from './look.js';
 import { drawTownPost, drawTwistTag, drawPatience, drawSetOff, perkRects, drawPerkCards } from './runhud.js';
+import { XP, levelOf, addXp, track, goalsToday, goalLabel, streakBonus, newUnlocks, unlocksOf, lookOf, cleanProgress, isUnlocked, unlockLabel } from './progress.js';
+import { drawDayBoard, drawWardrobe, levelBadge, xpBar } from './stable.js';
 import { createNet, JOIN, nextSettingValue } from './net.js';
 import { createSolo } from './solo.js';
 import { createMatchView } from './match-view.js';
 import { createRenderer, fitCamera, toScreen, toWorld } from './render.js';
 import { paint } from './scene.js';
 import { headPoint, createCamelActor } from './camel.js';
-import { PAL, SLEEVES } from './art.js';
+import { PAL, rr } from './art.js';
 import { layout, createHits, text, slab, turnIcon, drawSign, drawHint, signpost, goldenStraw, textWidth } from './ui.js';
 import { createFx } from './fx.js';
 import * as audio from './audio.js';
@@ -49,7 +51,7 @@ async function loadLib() {
   }
 }
 
-const DEFAULT_PROFILE = { v: 1, wins: 0, matches: 0, best: 0, bestTown: 1, lifetime: 0, dailies: 0, steady: false, hints: {}, sleeve: 0 };
+const DEFAULT_PROFILE = { v: 1, wins: 0, matches: 0, best: 0, bestTown: 1, lifetime: 0, dailies: 0, steady: false, hints: {}, sleeve: 0, xp: 0, streakBest: 0, streak: null, goals: null, look: null, softs: 0 };
 
 async function boot() {
   const roomPromise = joinRoom(); // join first, before anything heavy
@@ -112,6 +114,10 @@ async function boot() {
     hiddenLobby: null,
     reserved: null,
     hostStartAt: 0,
+    toasts: [],
+    fresh: new Set(), // Stable items earned since it was last opened
+    runXp: null,
+    stableFrom: 'game',
   };
 
   // ---------------------------------------------------------------- saves
@@ -123,9 +129,10 @@ async function boot() {
       const out = { ...DEFAULT_PROFILE, hints: {} };
       for (const k of Object.keys(DEFAULT_PROFILE)) {
         if (k === 'hints') out.hints = p.hints && typeof p.hints === 'object' ? { ...p.hints } : {};
+        else if (DEFAULT_PROFILE[k] === null) out[k] = p[k] && typeof p[k] === 'object' ? JSON.parse(JSON.stringify(p[k])) : null;
         else if (typeof p[k] === typeof DEFAULT_PROFILE[k]) out[k] = p[k];
       }
-      S.profile = out;
+      S.profile = cleanProgress(out);
     }
     const d = await safe(() => ow.save.get('daily'), null)?.catch?.(() => null);
     if (d && typeof d === 'object' && Number.isInteger(d.day)) S.daily = d;
@@ -133,11 +140,132 @@ async function boot() {
   const saveProfile = () => safe(() => ow?.save?.set('profile', S.profile)?.catch?.(() => {}));
   loadSave();
 
-  const unlocked = () => {
-    const p = S.profile;
-    return SLEEVES.filter((s) => s.id === 0 || (s.id === 1 && p.wins >= 1) || (s.id === 2 && p.bestTown >= 3) || (s.id === 3 && p.dailies >= 3) || (s.id === 4 && p.wins >= 10) || (s.id === 5 && p.steady)).map((s) => s.id);
-  };
+  cleanProgress(S.profile);
+  const unlocked = () => unlocksOf(S.profile, 'sleeve').map((u) => u.id);
   const mySleeve = () => (unlocked().includes(S.profile.sleeve) ? S.profile.sleeve : 0);
+  let saveTimer = 0;
+  const saveSoon = () => {
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(saveProfile, 700);
+  };
+
+  // ---------------------------------------------------------------- progress: XP, today's goals, the streak, unlocks
+
+  const unlockState = (p) => ({ xp: p.xp, bestTown: p.bestTown, streakBest: p.streakBest, wins: p.wins, dailies: p.dailies, steady: p.steady });
+  function afterGain(before) {
+    const p = S.profile;
+    const lb = levelOf(before.xp).level, la = levelOf(p.xp).level;
+    if (la > lb) {
+      toast({ kind: 'level', title: `Level ${la}`, line: 'Level up', level: la });
+      audio.fanfare();
+    }
+    for (const u of newUnlocks(before, p)) {
+      S.fresh.add(`${u.kind}:${u.id}`);
+      toast({ kind: 'unlock', title: u.name, line: 'New in the Stable' });
+    }
+    saveSoon();
+  }
+  function gainXp(n) {
+    const before = unlockState(S.profile);
+    const add = addXp(S.profile, n);
+    if (S.runXp) S.runXp.xp += add;
+    afterGain(before);
+  }
+  function progress(stat, amount = 1) {
+    const before = unlockState(S.profile);
+    const r = track(S.profile, stat, amount, today());
+    if (S.runXp) S.runXp.xp += r.xp;
+    for (const g of r.done) {
+      toast({ kind: 'goal', title: goalLabel(g), line: `+${Math.round(XP.goal * streakBonus(S.profile))} XP` });
+      S.goalPop = { i: S.profile.goals.list.indexOf(g), at: S.t };
+    }
+    if (r.done.length) audio.soft(3);
+    afterGain(before);
+  }
+  /** One of my loads held, in any mode. */
+  function myLoadHeld({ item, soft, smash }) {
+    gainXp(XP.load + (soft ? XP.soft : 0));
+    progress('loads');
+    if (soft) {
+      progress('soft');
+      S.profile.softs = (S.profile.softs ?? 0) + 1;
+    }
+    const key = ITEMS[item]?.key;
+    if (!smash && key === 'cat') progress('cat');
+    if (!smash && key === 'vase') progress('vase');
+    if (item === STRAW) progress('straw');
+  }
+  function matchPlayed(win) {
+    gainXp(XP.match + (win ? XP.win : 0));
+    progress('match');
+  }
+
+  // toasts: one at a time, sliding out from under the rope
+  function toast(t) {
+    if (S.toasts.length > 5) return;
+    S.toasts.push({ ...t, at: null });
+  }
+  function drawToasts(ctx) {
+    const q = S.toasts;
+    if (!q.length) return;
+    const t = q[0];
+    if (t.at === null) t.at = S.t;
+    const age = S.t - t.at;
+    const dur = 2.4;
+    if (age > dur) {
+      q.shift();
+      return;
+    }
+    const k = age < 0.3 ? 1 - (1 - age / 0.3) ** 3 : age > dur - 0.3 ? 1 - ((age - (dur - 0.3)) / 0.3) ** 2 : 1;
+    const big = L.phone ? 20 : 24;
+    const w = Math.max(textWidth(ctx, t.title, big, { display: true, weight: 900 }), textWidth(ctx, t.line, 14, { weight: 800 })) + 84;
+    const h = big + 34;
+    const x = L.W / 2 - w / 2;
+    const y = L.rope.y + L.rope.h + 6 - (1 - k) * (h + 30);
+    ctx.save();
+    ctx.globalAlpha = Math.max(0, Math.min(1, k * 1.5));
+    ctx.fillStyle = 'rgba(28,15,46,0.35)';
+    ctx.fill(rr(new Path2D(), x + 3, y + 5, w, h, 10));
+    const tp = rr(new Path2D(), x, y, w, h, 10);
+    ctx.fillStyle = t.kind === 'goal' ? '#E8FFF8' : '#FFF6E2';
+    ctx.fill(tp);
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = PAL.ink;
+    ctx.stroke(tp);
+    ctx.fillStyle = t.kind === 'goal' ? PAL.turq : t.kind === 'level' ? PAL.gold : PAL.rose;
+    ctx.fillRect(x + 3, y + 3, w - 6, 5);
+    const ix = x + 34, iy = y + h / 2 + 2;
+    if (t.kind === 'level') levelBadge(ctx, ix, iy, 18, t.level, S.t);
+    else {
+      ctx.beginPath();
+      ctx.arc(ix, iy, 16, 0, Math.PI * 2);
+      ctx.fillStyle = t.kind === 'goal' ? PAL.turq : PAL.rose;
+      ctx.fill();
+      ctx.lineWidth = 2.5;
+      ctx.stroke();
+      ctx.beginPath();
+      if (t.kind === 'goal') {
+        ctx.moveTo(ix - 7, iy);
+        ctx.lineTo(ix - 2, iy + 6);
+        ctx.lineTo(ix + 8, iy - 7);
+      } else {
+        for (let i = 0; i < 10; i++) {
+          const a = -Math.PI / 2 + (i * Math.PI) / 5, r = i % 2 ? 4.5 : 10;
+          ctx.lineTo(ix + Math.cos(a) * r, iy + Math.sin(a) * r);
+        }
+        ctx.closePath();
+        ctx.fillStyle = PAL.bone;
+        ctx.fill();
+      }
+      ctx.strokeStyle = t.kind === 'goal' ? PAL.bone : PAL.ink;
+      ctx.lineWidth = t.kind === 'goal' ? 3.5 : 2;
+      ctx.lineCap = 'round';
+      ctx.stroke();
+    }
+    text(ctx, t.title, x + 62, y + h * 0.4, { size: big, align: 'left', display: true, weight: 900, color: PAL.ink, outline: false });
+    text(ctx, t.line, x + 62, y + h * 0.76, { size: 14, align: 'left', weight: 800, color: PAL.violet, outline: false });
+    ctx.restore();
+  }
   const award = (id) => safe(() => ow?.badges?.award(id)?.catch?.(() => {}));
   const today = () => dayNumber(safe(() => ow?.now?.(), null) ?? Date.now());
 
@@ -282,6 +410,8 @@ async function boot() {
     fx.clear();
     audio.tok();
     townSign(S.solo, S.t + 0.2);
+    S.runXp = { xp: 0, xp0: S.profile.xp };
+    if (kind === 'daily') progress('daily');
   }
 
   function endSolo(score) {
@@ -393,6 +523,7 @@ async function boot() {
             }
           }
           if (d.top >= CAMEL.trayTop + 3) award('high-rise');
+          myLoadHeld({ item: d.item, soft: d.soft && d.bonus > 0, smash: d.smash });
           if (cam && !d.smash) {
             const p = toScreen(cam, d.x, d.top + 0.2);
             const post = S.runSpots?.post;
@@ -417,6 +548,7 @@ async function boot() {
           const p = toScreen(cam, -0.4, so.c.top + 0.6);
           fx.floater('Sweat ×2', p.x, p.y, null, PAL.rose);
           award('on-the-brink');
+          progress('brink');
         }
         S.goSince = 0;
         break;
@@ -449,6 +581,10 @@ async function boot() {
             audio.snort();
           }
           if (d.leg + 1 >= 6) award('six-towns');
+          S.profile.bestTown = Math.max(S.profile.bestTown, d.leg + 1);
+          gainXp(d.kg * XP.kg);
+          progress('kg', d.kg);
+          progress('town', d.leg + 1);
         }
         break;
       case 'perk':
@@ -739,6 +875,10 @@ async function boot() {
       if (k === 'Enter' || k === 'Space') pressPlay();
       return;
     }
+    if (S.screen === 'stable') {
+      if (k === 'Escape' || k === 'Backspace') closeStable();
+      return;
+    }
     if (S.screen === 'solo') {
       if (S.soloOver && S.soloBoard) {
         if (k === 'Space' || k === 'Enter') startSolo(S.solo.kind);
@@ -823,6 +963,14 @@ async function boot() {
     }
     if (id === 'setoff') return setOff();
     if (id === 'perk') return choosePerk(hit.data);
+    if (id === 'stable') return openStable();
+    if (id === 'back') return closeStable();
+    if (id === 'look') return wear(hit.data);
+    if (id === 'locked') {
+      S.lockedTip = { u: hit.data, at: S.t };
+      audio.blip();
+      return;
+    }
     if (id === 'caravan') return startSolo('caravan');
     if (id === 'daily') return startSolo('daily');
     if (id === 'invite') return safe(() => ow?.ui?.showInvite?.());
@@ -912,12 +1060,37 @@ async function boot() {
     if (S.closed) sc = closedScene();
     else if (S.screen === 'title') sc = titleScene(dt, wdt);
     else if (S.screen === 'solo' && S.solo) sc = soloScene(dt, wdt);
+    else if (S.screen === 'stable') sc = stableScene(dt, wdt);
     else sc = roomScene(dt, wdt);
     draw(sc, dt, wdt);
     fx.update(dt, wdt);
   }
 
   function autoStartMatch() {
+    // captures (never in production): open a screen, or give the save some progress to show
+    if (autoplay && !S.capSetUp && S.t > 1) {
+      S.capSetUp = true;
+      const xp = Number(params.get('xp'));
+      if (xp > 0) {
+        S.profile.xp = xp;
+        S.profile.streak = { day: today(), n: Number(params.get('streak')) || 1 };
+        S.profile.streakBest = Math.max(S.profile.streakBest, S.profile.streak.n);
+        const g = goalsToday(S.profile, today());
+        g.list[0].done = true;
+        g.list[0].have = g.list[0].n;
+      }
+      if (autoplay === 'stable') {
+        pressPlay();
+        openStable();
+      }
+      if (autoplay === 'lobby') pressPlay();
+    }
+    // captures: `&endat=<s>` ends the run then, to show the board
+    const endAt = Number(params.get('endat'));
+    if (autoplay === 'caravan' && endAt > 0 && S.solo && !S.soloOver && S.t > endAt) {
+      S.soloOver = { at: S.t, kind: 'ended' };
+      finishRun(S.solo, S.solo.kind === 'caravan');
+    }
     // captures: a Caravan run played by the animals
     if (autoplay === 'caravan' && S.screen !== 'solo' && S.t > 1.2 && !S.autoRunStarted) {
       S.autoRunStarted = true;
@@ -1016,7 +1189,7 @@ async function boot() {
 
   /** The look of a town on the road: its land, and the hour (a day passes every four towns; the night market at night). */
   const townTod = (leg) => (((leg - 1) % 4) / 3) * 0.9;
-  function lookOf(so) {
+  function runLookOf(so) {
     const c = so.c, st = so.st;
     return { leg: c.leg, twist: c.twist, scroll: st.scroll, townX: st.townX };
   }
@@ -1026,7 +1199,7 @@ async function boot() {
    * sweeps across and the change happens behind it.
    */
   function soloLook(so, dt) {
-    const now = lookOf(so);
+    const now = runLookOf(so);
     const prev = so.look;
     if (prev && !so.veil && (now.leg !== prev.leg || now.scroll < prev.scroll - 0.01)) {
       so.veil = { t: 0, from: prev };
@@ -1131,7 +1304,7 @@ async function boot() {
       const item = so.held;
       if (st.auto) {
         const h = st.handPos ?? { x: 0, y: hoverBox(item, 0, top).yDef, a: 0 };
-        sc.hands = { item, x: h.x, y: h.y, a: h.a, who: st.who, open: 0, visible: true };
+        sc.hands = { item, x: h.x, y: h.y, a: h.a, who: autoplay === 'caravan' ? { kind: 'player', seat: 0, sleeve: mySleeve() } : st.who, open: 0, visible: true };
       } else if (S.hand) {
         sc.hands = { item, x: S.hand.x, y: S.hand.y, a: S.hand.a, who: { kind: 'player', seat: 0, sleeve: mySleeve() }, open: 0, visible: true };
         sc.ghost = ghostOf(c.snap, `solo:${c.draws}:${c.load}:${c.leg}`);
@@ -1139,7 +1312,7 @@ async function boot() {
     }
     if (c.step === 'settle' && st.drop && st.runner && st.runner.sim.steps < 24) {
       const open = Math.min(1, st.runner.sim.steps / 14);
-      const who = st.auto ? st.who : { kind: 'player', seat: 0, sleeve: mySleeve() };
+      const who = st.auto && autoplay !== 'caravan' ? st.who : { kind: 'player', seat: 0, sleeve: mySleeve() };
       sc.handsAfter = { item: st.drop.item, x: st.drop.x, y: st.drop.y + open * 0.4, a: st.drop.a, who, open: 1, visible: true, alpha: 1 - open };
     }
     // the cart (it waits at the town while the camel is on the road)
@@ -1175,8 +1348,11 @@ async function boot() {
 
   function soloScene(dt, wdt) {
     const so = S.solo;
-    if (!S.soloPaused) so.update(wdt);
+    // an ended run stops where it is (the animals of a capture stop loading too)
+    const halted = S.soloOver?.kind === 'ended' && so.st.auto && !so.st.beat && so.c.step !== 'settle';
+    if (!S.soloPaused && !halted) so.update(wdt);
     const sc = soloWorld(so, false, wdt);
+    if (S.soloOver) sc.hands = null;
     const c = so.c;
     const st = so.st;
     audio.setMusic(S.soloPaused ? 'menu' : c.step === 'road' ? 'road' : 'play', clamp((sc.needle ?? 0) / sc.band[1], 0, 1));
@@ -1300,6 +1476,91 @@ async function boot() {
     if (so.setOff()) hintDone('setoff');
   }
 
+  // ------------------------------------------------ the Stable: dress the camel, see the day's goals
+
+  function openStable() {
+    audio.select();
+    S.stableFrom = S.screen === 'solo' ? 'game' : S.screen;
+    if (S.screen === 'solo') endSolo(false);
+    S.screen = 'stable';
+    S.stableAt = S.t;
+    S.lockedTip = null;
+    goalsToday(S.profile, today());
+  }
+  function closeStable() {
+    audio.tok();
+    S.fresh.clear();
+    S.screen = S.stableFrom === 'title' ? 'title' : 'game';
+    S.cam = null;
+    saveProfile();
+  }
+  function wear(u) {
+    const p = S.profile;
+    if (!isUnlocked(p, u)) return;
+    if (u.kind === 'sleeve') p.sleeve = u.id;
+    else p.look = { ...(p.look ?? {}), [u.kind]: u.id };
+    S.fresh.delete(`${u.kind}:${u.id}`);
+    saveSoon();
+    audio.select();
+    audio.grumble(0);
+    actor.impulse(6, 3);
+    S.camel.lookT = 1.2;
+    const hp = headPoint({ t: S.t, saddle: { y: 0, a: 0 } });
+    if (S.cam) for (let i = 0; i < 3; i++) fx.debris(u.kind === 'coat' ? 'straw' : 'cloth', hp.x + 0.6, hp.y - 0.3 - i * 0.3, 6, 0.3);
+  }
+
+  /** Where the camel stands and where the panel goes. */
+  function stableSpots() {
+    const W = L.W, H = L.H;
+    const top = L.rope.y + L.rope.h + 10;
+    if (L.portrait) {
+      const ph = Math.min(H * 0.56, 560);
+      const panel = { x: 10, y: H - ph - 10, w: W - 20, h: ph };
+      return { panel, stage: { x: 10, y: top + 40, w: W - 20, h: Math.max(80, panel.y - top - 60) }, back: { x: 12, y: top, w: 110, h: 50 } };
+    }
+    const pw = Math.min(W * 0.56, 640);
+    const panel = { x: W - pw - 14, y: top, w: pw, h: H - top - 14 };
+    return { panel, stage: { x: 20, y: top + 50, w: panel.x - 40, h: Math.max(80, L.gy - top - 60) }, back: { x: 14, y: top, w: 120, h: 54 } };
+  }
+
+  function stableScene(dt, wdt) {
+    const sc = baseScene();
+    sc.needle = null;
+    sc.cart = null;
+    sc.bridge = true;
+    sc.tod = 0.18;
+    sc.biome = 'oasis';
+    sc.camel.chew = true;
+    sc.box = { x0: -2.8, x1: 1.8, y1: 3.2 };
+    sc.stage = () => stableSpots().stage;
+    audio.setMusic('menu', 0);
+    const p = S.profile;
+    goalsToday(p, today());
+    sc.hud.push((ctx) => {
+      const sp = stableSpots();
+      const age = S.t - (S.stableAt ?? 0);
+      const k = 1 - (1 - clamp(age / 0.35, 0, 1)) ** 3;
+      ctx.save();
+      ctx.translate((1 - k) * (L.portrait ? 0 : 80), (1 - k) * (L.portrait ? 80 : 0));
+      ctx.globalAlpha = k;
+      const P = sp.panel;
+      const dayH = clamp(P.h * 0.36, 150, 210);
+      drawDayBoard(ctx, { x: P.x, y: P.y, w: P.w, h: dayH }, { profile: p, day: today(), t: S.t, popId: S.goalPop?.i, popAge: S.goalPop ? S.t - S.goalPop.at : null });
+      const W0 = { x: P.x, y: P.y + dayH + 6, w: P.w, h: P.h - dayH - 6 };
+      const list = drawWardrobe(ctx, W0, { profile: p, look: lookOf(p), sleeve: mySleeve(), t: S.t, fresh: S.fresh });
+      ctx.restore();
+      for (const h of list) hits.add(h.rect, h.open ? 'look' : 'locked', h.u);
+      const r = slab(ctx, sp.back, 'Back', { key: S.touch ? '' : 'Esc', size: 22 });
+      hits.add(r, 'back');
+      const tip = S.lockedTip;
+      if (tip && S.t - tip.at < 1.6) {
+        const h = list.find((x) => x.u === tip.u);
+        if (h) drawHint(ctx, unlockLabel(tip.u), h.rect.x + h.rect.w / 2, h.rect.y - 18, S.t, null, clamp((1.6 - (S.t - tip.at)) / 0.3, 0, 1));
+      }
+    });
+    return sc;
+  }
+
   function pauseBoard(ctx) {
     const c = L.center;
     drawSign(ctx, c.x, c.y, [{ s: 'Paused', size: 44 }], 1);
@@ -1312,22 +1573,49 @@ async function boot() {
 
   function runBoard(ctx, so) {
     const b = S.soloBoard;
-    const drop = clamp((S.t - S.soloOver.at - 0.4) / 0.5, 0, 1);
+    const age = S.t - S.soloOver.at - 0.4;
+    const drop = clamp(age / 0.5, 0, 1);
     const e = 1 - (1 - drop) ** 3;
     const lines = [{ s: `${b.kg} kg`, size: L.phone ? 56 : 72 }, { s: b.kind === 'daily' ? `Daily cart · town ${b.town}` : `Reached town ${b.town}`, size: 24 }];
     if (b.newBest) lines.push({ s: 'New best', size: 26, color: PAL.roseDark });
     else lines.push({ s: `Best ${b.best} kg`, size: 22, color: PAL.violet });
     if (b.kind === 'daily' && !b.scored) lines.push({ s: 'Practice', size: 20, color: PAL.violet });
-    if (b.list && b.list.length) {
-      b.list.slice(0, 5).forEach((e2, i) => lines.push({ s: `${i + 1}. ${e2.name.slice(0, 16)}  ${e2.kg} kg`, size: 18, display: false, color: e2.me ? PAL.roseDark : PAL.ink }));
-    }
+    const list = (b.list ?? []).slice(0, 5).map((e2, i) => ({ s: `${i + 1}. ${e2.name.slice(0, 16)}  ${e2.kg} kg`, size: 18, display: false, color: e2.me ? PAL.roseDark : PAL.ink }));
+    const side = list.length && L.W >= 900;
+    if (list.length && !side && L.H >= 640) lines.push(...list);
     const c = L.center;
-    const r = drawSign(ctx, c.x, Math.max(L.rope.y + L.rope.h + 120, c.y + 20), lines, e, { minW: 260 });
+    const cx = side ? c.x - 160 : c.x;
+    const r = drawSign(ctx, cx, Math.max(L.rope.y + L.rope.h + 120, c.y + 10), lines, e, { minW: 270 });
+    if (side) drawSign(ctx, c.x + 170, r.y + r.h / 2, [{ s: b.kind === 'daily' ? 'Today' : 'Top caravans', size: 26, color: PAL.violet }, ...list], clamp((age - 0.25) / 0.5, 0, 1), { minW: 240 });
+    // the XP this run earned, filling the level bar
+    let y = r.y + r.h + 16;
+    if (S.runXp && drop >= 1) {
+      const xp1 = S.profile.xp, xp0 = S.runXp.xp0 ?? xp1;
+      const f = clamp((age - 0.5) / 1.2, 0, 1);
+      const shown = Math.round(xp0 + (xp1 - xp0) * (1 - (1 - f) ** 2));
+      const lv = levelOf(shown);
+      const w = Math.min(340, L.W - 40), h = 46;
+      const x = cx - w / 2;
+      const p = rr(new Path2D(), x, y, w, h, 10);
+      ctx.fillStyle = 'rgba(28,15,46,0.55)';
+      ctx.fill(p);
+      ctx.lineWidth = 2.5;
+      ctx.strokeStyle = PAL.ink;
+      ctx.stroke(p);
+      levelBadge(ctx, x + 26, y + h / 2, 17, lv.level, S.t);
+      xpBar(ctx, { x: x + 52, y: y + h / 2 - 8, w: w - 140, h: 16 }, lv.frac, '');
+      text(ctx, `+${S.runXp.xp} XP`, x + w - 12, y + h / 2 + 1, { size: 18, align: 'right', display: true, weight: 900, color: PAL.gold, lw: 4 });
+      if (f < 1 && Math.floor(S.t * 12) !== S.xpTickAt) {
+        S.xpTickAt = Math.floor(S.t * 12);
+        audio.tick(false);
+      }
+      y += h + 14;
+    }
     if (drop >= 1) {
       const bw = Math.min(180, (L.W - 40) / 2 - 8), bh = 60;
-      const y = Math.min(L.H - bh - 12, r.y + r.h + 18);
-      const r1 = slab(ctx, { x: c.x - bw - 8, y, w: bw, h: bh }, 'Again', { primary: true, key: S.touch ? '' : 'Space' });
-      const r2 = slab(ctx, { x: c.x + 8, y, w: bw, h: bh }, 'Lobby', { key: S.touch ? '' : 'Esc' });
+      y = Math.min(L.H - bh - 12, y);
+      const r1 = slab(ctx, { x: cx - bw - 8, y, w: bw, h: bh }, 'Again', { primary: true, key: S.touch ? '' : 'Space' });
+      const r2 = slab(ctx, { x: cx + 8, y, w: bw, h: bh }, 'Lobby', { key: S.touch ? '' : 'Esc' });
       hits.add(r1, 'again');
       hits.add(r2, 'lobby');
     }
@@ -1361,6 +1649,8 @@ async function boot() {
     doDrop,
     landJuice,
     smashJuice,
+    myLoadHeld,
+    matchPlayed,
     placeHints,
     baseScene,
     today,
@@ -1379,6 +1669,7 @@ async function boot() {
       L.stage.y = T.bottom;
       L.stage.h = Math.max(80, L.gy - T.bottom);
     }
+    if (sc.stage) L.stage = sc.stage(L);
 
     // the camel's own animation: squash, side-eye, knees
     const A = S.camel;
@@ -1405,6 +1696,7 @@ async function boot() {
       tremble: sc.camel.mood >= 2 ? (sc.camel.mood - 1) / 2 : 0,
       look: A.look,
       actor,
+      ...lookOf(S.profile),
     };
     // sweat
     if (sc.camel.mood >= 2 && !sc.camel.knocked && Math.random() < dt * (sc.camel.mood === 3 ? 5 : 2)) {
@@ -1431,8 +1723,35 @@ async function boot() {
       S.cam.ox += (target.ox - S.cam.ox) * k;
       S.cam.oy = target.oy;
     }
+    // the cart: a new offer rolls in; a pick lifts off. Hands reach down from above when they first appear.
+    if (sc.cart && sc.cart.offer) {
+      const key = sc.cart.offer.join(',');
+      if (key !== S.cartKey) {
+        S.cartKey = key;
+        S.cartAt = S.t;
+        S.cartPick = null;
+      }
+      sc.cart.age = S.t - S.cartAt;
+      const hide = sc.cart.hide ?? -1;
+      if (hide >= 0 && S.cartHide !== hide) S.cartPick = { i: hide, item: sc.cart.offer[hide], at: S.t };
+      S.cartHide = hide;
+      if (S.cartPick && hide === S.cartPick.i) sc.cart.pick = { ...S.cartPick, age: S.t - S.cartPick.at };
+    }
+    if (sc.hands?.visible) {
+      const w = sc.hands.who ?? {};
+      const hk = `${sc.hands.item}:${w.kind}:${w.seat ?? w.fur}`;
+      if (hk !== S.handsKey) {
+        S.handsKey = hk;
+        S.handsAt = S.t;
+      }
+      const u = clamp((S.t - S.handsAt) / 0.3, 0, 1);
+      if (u < 1) sc.hands = { ...sc.hands, y: sc.hands.y + (1 - u) ** 3 * 1.6 };
+    } else S.handsKey = '';
     const off = fx.offset(S.t);
-    const cam = { s: S.cam.s, ox: S.cam.ox + off.x, oy: S.cam.oy + off.y };
+    // a punch-in on heavy landings, toward the middle of the stage
+    const z = fx.zoom;
+    const zx = L.stage.x + L.stage.w / 2, zy = L.stage.y + L.stage.h * 0.55;
+    const cam = { s: S.cam.s * z, ox: zx + (S.cam.ox - zx) * z + off.x, oy: zy + (S.cam.oy - zy) * z + off.y };
 
     const painted = paint(R, L, sc, { t: S.t, dt, cam, needle: nd.v, camel, tagAnim, fx, avatarOf, reduced: fx.reduced });
     S.tagPos = painted.tagPos;
@@ -1469,6 +1788,7 @@ async function boot() {
     if (sc.sign) drawSign(ctx, L.center.x, L.center.y, sc.sign.lines, 1 - (1 - sc.sign.drop) ** 3);
     drawHintNow(ctx);
     fx.drawScreen(ctx);
+    drawToasts(ctx);
     if (!document.body.dataset.ready && S.t > 0.3) document.body.dataset.ready = '1';
   }
 
