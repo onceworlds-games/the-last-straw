@@ -8,7 +8,7 @@ import { createSolo } from './solo.js';
 import { createMatchView } from './match-view.js';
 import { createRenderer, fitCamera, toScreen, toWorld } from './render.js';
 import { paint } from './scene.js';
-import { headPoint } from './camel.js';
+import { headPoint, createCamelActor } from './camel.js';
 import { PAL, SLEEVES } from './art.js';
 import { layout, createHits, text, slab, turnIcon, drawSign, drawHint, signpost, goldenStraw, textWidth } from './ui.js';
 import { createFx } from './fx.js';
@@ -53,6 +53,7 @@ async function boot() {
   const canvas = document.getElementById('cv');
   const R = createRenderer(canvas);
   const fx = createFx();
+  const actor = createCamelActor();
   const hits = createHits();
   const tagAnim = new Map();
   const autoplay = params.get('autoplay') && safe(() => ow?.mode !== 'production', false) ? params.get('autoplay') : null;
@@ -433,6 +434,7 @@ async function boot() {
     const kg = ITEMS[item]?.kg ?? 0;
     if (loud) audio.land(ITEMS[item]?.mat, energy);
     S.camel.squash = Math.min(1, S.camel.squash + 0.2 + kg / 30);
+    actor.impulse(kg, energy);
     fx.shake(Math.min(0.5, kg / 40 + energy * 0.01));
     fx.puff(x, Math.max(0.02, y - 0.25), Math.round(4 + kg / 2), 0.5 + kg / 30);
     if (loud && kg >= 8) audio.creak(0.12);
@@ -768,6 +770,8 @@ async function boot() {
     const ws = fx.scale(dt);
     const wdt = dt * ws;
     fx.reduced = safe(() => !!ow?.settings?.reducedMotion, false);
+    R.quality = safe(() => (['low', 'medium', 'high'].includes(ow?.settings?.quality) ? ow.settings.quality : 'high'), 'high');
+    if (params.get('quality')) R.quality = params.get('quality');
     const W = Math.max(1, window.innerWidth);
     const H = Math.max(1, window.innerHeight);
     const pr = (ow?.settings && safe(() => ow.settings.pixelRatio(2), null)) || Math.min(2, window.devicePixelRatio || 1);
@@ -1055,13 +1059,16 @@ async function boot() {
       audio.boing();
     }
     const strain01 = clamp(needleT / 100, 0, 1.1);
+    const lookAt = sc.hands && sc.hands.visible ? { x: sc.hands.x, y: sc.hands.y } : sc.lookAt ?? null;
+    actor.update(wdt, { mood: sc.camel.mood, strain01, fold: sc.camel.fold, walk: sc.camel.walk, saddle: sc.saddle, knocked: sc.camel.knocked, look: A.look, lookAt, chew: sc.camel.chew });
     const camel = {
       ...sc.camel,
       t: S.t,
       saddle: sc.saddle,
-      bow: clamp(strain01 * 0.7 + A.squash * 0.5, 0, 1),
+      bow: clamp(strain01 * 0.7 + A.squash * 0.3, 0, 1),
       tremble: sc.camel.mood >= 2 ? (sc.camel.mood - 1) / 2 : 0,
       look: A.look,
+      actor,
     };
     // sweat
     if (sc.camel.mood >= 2 && !sc.camel.knocked && Math.random() < dt * (sc.camel.mood === 3 ? 5 : 2)) {
@@ -1083,7 +1090,7 @@ async function boot() {
     const off = fx.offset(S.t);
     const cam = { s: S.cam.s, ox: S.cam.ox + off.x, oy: S.cam.oy + off.y };
 
-    const painted = paint(R, L, sc, { t: S.t, dt, cam, needle: nd.v, camel, tagAnim, fx, avatarOf });
+    const painted = paint(R, L, sc, { t: S.t, dt, cam, needle: nd.v, camel, tagAnim, fx, avatarOf, reduced: fx.reduced });
     S.tagPos = painted.tagPos;
     if (sc.tags) {
       const mine = sc.tags.find((g) => g.me);

@@ -63,10 +63,15 @@ export async function runPoster(name) {
 
 // ---------------------------------------------------------------- the scenes
 
+const QP = new URLSearchParams(location.search);
+
 function baseScene() {
+  const tod = QP.get('tod');
   return {
     sun: 0.1,
     night: 0,
+    tod: tod !== null && Number.isFinite(+tod) ? +tod : undefined,
+    biome: QP.get('biome') || undefined,
     scroll: 0,
     camel: { mood: 0, look: 0, fold: 0, knocked: false, walk: null, chew: true, straw: false },
     items: [],

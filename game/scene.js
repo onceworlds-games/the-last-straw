@@ -5,7 +5,7 @@ import { PAL, drawHands, drawPortrait } from './art.js';
 import { extents } from './physics.js';
 import { ITEMS, isItem } from './items.js';
 import { createRng } from './rng.js';
-import { drawBackdrop, drawWorld, toScreen } from './render.js';
+import { drawBackdrop, drawStation, drawWorld, drawGrade, toScreen, todOf } from './render.js';
 import { drawRope, drawDial, drawCart, drawSign, goldenStraw, text } from './ui.js';
 
 /**
@@ -15,7 +15,10 @@ import { drawRope, drawDial, drawCart, drawSign, goldenStraw, text } from './ui.
 export function paint(R, L, sc, P) {
   const { ctx } = R;
   const cam = P.cam;
-  drawBackdrop(R, cam, { t: P.t, sun: sc.sun, night: sc.night, scroll: sc.scroll, onSun: sc.onSun });
+  const tod = todOf(sc);
+  const biome = sc.biome ?? 'market';
+  drawBackdrop(R, cam, { t: P.t, tod, biome, scroll: sc.scroll, onSun: sc.onSun, reduced: P.reduced });
+  drawStation(R, cam, { t: P.t, tod, biome, scroll: sc.scroll, bridge: sc.bridge, station: sc.station ?? sc.bridge, town: sc.town });
   drawWorld(R, cam, {
     t: P.t,
     camel: P.camel,
@@ -25,14 +28,15 @@ export function paint(R, L, sc, P) {
     town: sc.town ?? null,
     heap: sc.heap,
     crack: sc.crack,
-    scroll: sc.scroll,
-    bridge: sc.bridge,
+    tod,
+    biome,
   });
   R.world(cam);
   if (P.fx) P.fx.drawWorld(ctx, 1 / cam.s);
   if (sc.handsAfter) drawLetGo(ctx, cam, sc.handsAfter);
   for (const h of sc.extraHands ?? []) drawLetGo(ctx, cam, h);
   if (sc.crownAt) drawCrown(R, cam, sc.crownAt, P.avatarOf);
+  drawGrade(R, { t: P.t, reduced: P.reduced });
 
   R.screen();
   ctx.globalAlpha = 1;
