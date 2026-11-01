@@ -468,9 +468,10 @@ items with the game's physics.
   crate in gold rings, three vases, the cat on a crate, a town gate with 10, the level badge, the streak's lantern.
 - The cover's camel wears the Flowers hat, the results camel a top hat and the night blanket, the multi camel a bandana:
   the Stable on the store page.
-- **Trailer** (23 s), from real play captured with the autoplay: the goal in the first frame (a tall load, the needle, the
-  pick between a teapot and an anvil, the anvil going up), the animals loading, the load slumping with the needle in the
-  red, the last straw and its sign, the win on the heap, and the title screen to close.
+- **Trailer** (29 s), real play captured with the autoplay, five hard cuts: a crate lowered onto a tall load in a match,
+  tipping off in slow motion and its sign; a Caravan load with the Level 10 and Stable unlock toasts; Set off, the road,
+  the town gate, the receipt and the town's gifts; the Stable changing hat, blanket and coat; the title's animals breaking
+  the camel's back under the name. Encoded with a light temporal denoise (the grain is per frame).
 
 ## Originality check
 
