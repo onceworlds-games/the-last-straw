@@ -39,7 +39,7 @@ export const ITEMS = [
   { key: 'clock', name: 'grandfather clock', kg: 12, mass: 12, w: 0.5, h: 1.8, rarity: 'rare', mat: 'clock', rest: [Math.PI / 2, -Math.PI / 2, 0], parts: [box(0.44, 1.6, 0, -0.1), box(0.5, 0.2, 0, 0.8)] },
   { key: 'bathtub', name: 'bathtub', kg: 14, mass: 14, w: 1.4, h: 0.6, rarity: 'rare', mat: 'enamel', rest: [0, Math.PI], parts: [box(1.2, 0.14, 0, -0.23), poly([[-0.7, 0.3], [-0.56, 0.3], [-0.48, -0.16], [-0.6, -0.3]]), poly([[0.56, 0.3], [0.7, 0.3], [0.6, -0.3], [0.48, -0.16]])] },
   { key: 'sofa', name: 'sofa', kg: 16, mass: 16, w: 1.6, h: 0.76, rarity: 'rare', mat: 'cloth', rest: [0, Math.PI / 2], parts: [box(1.6, 0.42, 0, -0.17), box(0.3, 0.76, 0.65, 0)] },
-  { key: 'anvil', name: 'anvil', kg: 18, mass: 18, w: 0.72, h: 0.42, rarity: 'rare', mat: 'iron', rest: [0], parts: [box(0.46, 0.12, 0.1, -0.15), box(0.22, 0.14, 0.1, -0.02), box(0.5, 0.13, 0.1, 0.145), poly([[-0.15, 0.21], [-0.15, 0.08], [-0.36, 0.17]])] },
+  { key: 'anvil', name: 'anvil', kg: 18, mass: 18, w: 0.72, h: 0.42, rarity: 'rare', mat: 'iron', rest: [0], parts: [box(0.46, 0.12, 0.1, -0.15), box(0.22, 0.2, 0.1, -0.01), box(0.5, 0.13, 0.1, 0.145), poly([[-0.15, 0.21], [-0.15, 0.08], [-0.36, 0.17]])] },
 ];
 
 export const ITEM_BY_KEY = Object.fromEntries(ITEMS.map((it, i) => [it.key, i]));
