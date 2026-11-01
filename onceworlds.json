@@ -1,0 +1,36 @@
+{
+  "slug": "the-last-straw",
+  "name": "The Last Straw",
+  "description": "Take turns loading the camel. Don't be the one who breaks its back.",
+  "dir": "game",
+  "productionBranch": "main",
+  "genre": "Party",
+  "icon": "store/icon.png",
+  "thumbnails": ["store/thumb-1.png", "store/thumb-2.png", "store/thumb-3.png", "store/thumb-4.png"],
+  "controls": [
+    { "keys": ["Click", "Tap"], "action": "Pick an item from the cart" },
+    { "keys": ["1", "2"], "action": "Pick the left or right item" },
+    { "keys": ["Mouse"], "action": "Move the item over the camel" },
+    { "keys": ["Drag"], "action": "Move the item (touch)" },
+    { "keys": ["A", "D", "Left", "Right"], "action": "Move the item sideways" },
+    { "keys": ["W", "S", "Up", "Down"], "action": "Raise or lower the item" },
+    { "keys": ["Q", "E", "Wheel"], "action": "Turn the item 15°" },
+    { "keys": ["Click", "Space", "Enter"], "action": "Drop the item" },
+    { "keys": ["Drop", "↺", "↻"], "action": "Touch buttons while you place" },
+    { "keys": ["Esc", "P"], "action": "Pause a Caravan run" }
+  ],
+  "badges": [
+    { "id": "first-load", "name": "First Load", "description": "Place your first item that holds.", "icon": "store/badge-first-load.png" },
+    { "id": "last-straw", "name": "The Last Straw", "description": "Break the camel's back with a straw.", "icon": "store/badge-last-straw.png" },
+    { "id": "steady-hand", "name": "Steady Hand", "description": "Land an item with the needle past the middle of the red, and it holds.", "icon": "store/badge-steady-hand.png" },
+    { "id": "anvil-gift", "name": "Anvil Gift", "description": "Hand the anvil to the next player, who breaks the back with it.", "icon": "store/badge-anvil-gift.png" },
+    { "id": "high-rise", "name": "High Rise", "description": "A load that stands 3 m above the saddle, and holds.", "icon": "store/badge-high-rise.png" },
+    { "id": "survivor", "name": "Survivor", "description": "Win a match.", "icon": "store/badge-survivor.png" },
+    { "id": "six-towns", "name": "Six Towns", "description": "Reach town 6 in one Caravan run.", "icon": "store/badge-six-towns.png" },
+    { "id": "heavy-lifter", "name": "Heavy Lifter", "description": "Deliver 1000 kg in Caravan, all runs together.", "icon": "store/badge-heavy-lifter.png" },
+    { "id": "daily-cart", "name": "Daily Cart", "description": "Finish a Daily cart.", "icon": "store/badge-daily-cart.png" }
+  ],
+  "data": {
+    "daily": { "type": "list", "max": 100, "bytes": 64 }
+  }
+}
