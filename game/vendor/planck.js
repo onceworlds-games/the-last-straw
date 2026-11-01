@@ -1,4 +1,4 @@
-// onceworlds-ignore big-file: planck.js as published (MIT, see LICENSE-planck.txt next to it)
+/* planck.js as published (MIT, see LICENSE-planck.txt next to it) */ // onceworlds-ignore big-file
 /**
  * Planck.js v1.5.1
  * @license The MIT license

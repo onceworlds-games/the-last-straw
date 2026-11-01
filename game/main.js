@@ -735,6 +735,10 @@ async function boot() {
     if (!S.room && !ow) S.screen = 'game';
   }
 
+  // the platform's menu and touch controls: the layout reads ow.ui.reserved every frame, and resets the camera when it moves
+  ow?.on?.('reserved', () => {
+    S.cam = null;
+  });
   ow?.on?.('pause', () => {
     if (S.screen === 'solo' && !S.soloOver) S.soloPaused = true;
   });
@@ -766,7 +770,7 @@ async function boot() {
     const H = Math.max(1, window.innerHeight);
     const pr = (ow?.settings && safe(() => ow.settings.pixelRatio(2), null)) || Math.min(2, window.devicePixelRatio || 1);
     R.resize(W, H, pr);
-    S.reserved = safe(() => ow?.ui?.reserved ?? null, null);
+    S.reserved = ow && ow.ui ? safe(() => ow.ui.reserved ?? null, null) : null;
     syncLobbyStrip();
     hits.clear();
     keyMove(dt);
