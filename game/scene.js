@@ -136,26 +136,54 @@ export function buildHeap(list, seed) {
   const mid = (X0 + X1) / 2;
   const hm = new Float64Array(N + 1);
   const ix = (x) => Math.max(0, Math.min(N, Math.round(((x - X0) / (X1 - X0)) * N)));
-  const baseUnder = (cx, e) => {
-    let base = 0;
-    for (let i = ix(cx + e.minX); i <= ix(cx + e.maxX); i++) base = Math.max(base, hm[i]);
-    return base;
+  const colX = (i) => X0 + (i / N) * (X1 - X0);
+  // where an item rests: its rotated box's own bottom edge on each column (a tilted ladder or straw lies on what's under it,
+  // not on its bounding box)
+  const span = (item, a, x) => {
+    const it = ITEMS[item];
+    const c = Math.cos(a), sn = Math.sin(a), hw = it.w / 2, hh = it.h / 2;
+    const P = [[-hw, -hh], [hw, -hh], [hw, hh], [-hw, hh]].map(([px, py]) => [px * c - py * sn, px * sn + py * c]);
+    let lo = Infinity, hi = -Infinity;
+    for (let k = 0; k < 4; k++) {
+      const [x1, y1] = P[k], [x2, y2] = P[(k + 1) % 4];
+      if (x < Math.min(x1, x2) - 1e-9 || x > Math.max(x1, x2) + 1e-9) continue;
+      const y = Math.abs(x2 - x1) < 1e-9 ? [y1, y2] : [y1 + ((x - x1) / (x2 - x1)) * (y2 - y1)];
+      for (const v of y) {
+        lo = Math.min(lo, v);
+        hi = Math.max(hi, v);
+      }
+    }
+    return lo === Infinity ? null : [lo, hi];
+  };
+  const restY = (item, a, cx) => {
+    const e = extents(item, a);
+    let y = -Infinity;
+    for (let i = ix(cx + e.minX); i <= ix(cx + e.maxX); i++) {
+      const sp = span(item, a, colX(i) - cx);
+      if (sp) y = Math.max(y, hm[i] - sp[0]);
+    }
+    return y === -Infinity ? -e.minY : y;
   };
   const out = [];
   const put = (item, a, cx) => {
     const e = extents(item, a);
-    const y = baseUnder(cx, e) - e.minY - 0.03;
-    for (let i = ix(cx + e.minX); i <= ix(cx + e.maxX); i++) hm[i] = Math.max(hm[i], y + e.maxY);
+    const y = restY(item, a, cx) - 0.02;
+    for (let i = ix(cx + e.minX); i <= ix(cx + e.maxX); i++) {
+      const sp = span(item, a, colX(i) - cx);
+      if (sp) hm[i] = Math.max(hm[i], y + sp[1]);
+    }
     out.push({ item, x: cx, y, a, top: y + e.maxY });
   };
   for (const item of order) {
-    const a = (rng.next() - 0.5) * 0.4 + (ITEMS[item].key === 'clock' ? Math.PI / 2 : 0);
+    const key = ITEMS[item].key;
+    const tilt = key === 'straw' || key === 'ladder' ? 0.12 : 0.4;
+    const a = (rng.next() - 0.5) * tilt + (key === 'clock' ? Math.PI / 2 : 0);
     const e = extents(item, a);
     const lo = X0 - e.minX, hi = Math.max(lo, X1 - e.maxX);
     let best = null;
     for (let t = 0; t < 20; t++) {
       const cx = lo + rng.next() * (hi - lo);
-      const score = baseUnder(cx, e) + Math.abs(cx - mid) * 0.2 + rng.next() * 0.1;
+      const score = restY(item, a, cx) + e.minY + Math.abs(cx - mid) * 0.2 + rng.next() * 0.1;
       if (!best || score < best.score) best = { cx, score };
     }
     put(item, a, best.cx);
@@ -164,7 +192,7 @@ export function buildHeap(list, seed) {
     let peak = Math.round(N / 2);
     for (let i = 0; i <= N; i++) if (hm[i] > hm[peak] + 1e-6) peak = i;
     const e = extents(lastItem, 0);
-    const px = X0 + (peak / N) * (X1 - X0) - (e.minX + e.maxX) / 2;
+    const px = colX(peak) - (e.minX + e.maxX) / 2;
     put(lastItem, 0, Math.max(X0 - e.minX, Math.min(X1 - e.maxX, px)));
   }
   return out;

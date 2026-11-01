@@ -89,7 +89,7 @@ export function createMatchView(app) {
       const results = m.results;
       lob.players.forEach((p, i) => {
         const res = results?.find?.((r) => r.id === p.id);
-        tags.push({ id: p.id, name: p.name, seat: i, me: p.me, host: p.host, kg: res ? Number(res.score) || 0 : 0, label: res ? undefined : p.me ? 'You' : p.ready ? 'Ready' : '·', place: res?.place, avatar: avatarOf(p.id), faded: p.away });
+        tags.push({ id: p.id, name: p.name, seat: i, me: p.me, host: p.host, kg: res ? Number(res.points) || 0 : 0, label: res ? undefined : p.me ? 'You' : p.ready ? 'Ready' : '·', place: res?.place, avatar: avatarOf(p.id), faded: p.away });
       });
       const nb = clamp(lob.bots ?? 0, 0, 6 - tags.length);
       for (let i = 0; i < nb; i++) tags.push({ id: `bot:${i}`, name: BOT_NAMES[i % BOT_NAMES.length], seat: tags.length, bot: true, kg: 0, label: '', faded: true, invite: true });
@@ -557,10 +557,11 @@ export function createMatchView(app) {
     sc.heap = S.heap;
     const topIt = sc.heap[sc.heap.length - 1];
     sc.crownAt = topIt ? { x: topIt.x, y: topIt.top + 0.05, id: winner?.id, name: winner?.name, bot: !!m.seats?.find((s) => s.id === winner?.id)?.bot } : null;
-    sc.box = { x0: -2.6, x1: 2.9, y1: Math.max(3.2, (topIt?.top ?? 2) + 1.2) };
+    // room above the peak for the winner's portrait, clear of the sign
+    sc.box = { x0: -2.6, x1: 2.9, y1: Math.max(3.6, (topIt?.top ?? 2) + 2.0) };
     sc.tags = (m.seats ?? []).map((s, i) => {
       const r = res.find((x) => x.id === s.id);
-      return { id: s.id, name: s.name, seat: i, bot: !!s.bot, me: !!s.me, kg: Number(r?.score) || 0, place: r?.place, avatar: s.bot ? null : avatarOf(s.id) };
+      return { id: s.id, name: s.name, seat: i, bot: !!s.bot, me: !!s.me, kg: Number(r?.points) || 0, place: r?.place, avatar: s.bot ? null : avatarOf(s.id) };
     });
     sc.tags.sort((a, b) => (a.place ?? 9) - (b.place ?? 9));
     const room = S.room;
