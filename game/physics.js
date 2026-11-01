@@ -591,6 +591,9 @@ export function createWalk(snap, options = {}) {
 
 const xfA = new pl.Transform();
 const xfB = new pl.Transform();
+const landBox = new pl.AABB();
+// how far under the item's lowest point still counts as clear air (shape skins are far thinner)
+const CLEAR = 0.05;
 
 /**
  * Lower the item straight down from (x, y) at angle a until it first touches the load, the camel or the ground.
@@ -605,9 +608,25 @@ export function landing(sim, item, x, y, a) {
     fixtures.push(f);
     return true;
   });
+  // each fixture's highest point: nothing touches while the item's underside is above it, so the lowering skips that air
+  const tops = [];
+  let top = -Infinity;
+  for (const f of fixtures) {
+    let t = -Infinity;
+    const xf = f.getBody().getTransform();
+    for (let ci = 0; ci < f.getShape().getChildCount(); ci++) {
+      f.getShape().computeAABB(landBox, xf, ci);
+      t = Math.max(t, landBox.upperBound.y);
+    }
+    tops.push(t);
+    top = Math.max(top, t);
+  }
   const hits = (yy) => {
     xfA.set(pl.Vec2(x, yy), a);
-    for (const f of fixtures) {
+    const under = yy + e.minY - CLEAR;
+    for (let i = 0; i < fixtures.length; i++) {
+      if (tops[i] < under) continue;
+      const f = fixtures[i];
       const b = f.getBody();
       xfB.set(b.getPosition(), b.getAngle());
       for (const s of shapes) for (let ci = 0; ci < f.getShape().getChildCount(); ci++) if (pl.testOverlap(s, 0, f.getShape(), ci, xfA, xfB)) return f;
@@ -621,7 +640,8 @@ export function landing(sim, item, x, y, a) {
   const stepDown = 0.04;
   for (let i = 0; i < 400; i++) {
     lo = hi - stepDown;
-    hit = hits(lo);
+    // the same heights as testing each one (so the same answer), without overlap tests in clear air
+    hit = lo + e.minY - CLEAR > top ? null : hits(lo);
     if (hit) break;
     hi = lo;
     if (lo + e.minY < -0.2) return { y: -e.minY, what: 'ground' };

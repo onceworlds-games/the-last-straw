@@ -65,8 +65,12 @@ function candidates(item, snap, skill, persona, rng) {
   return near;
 }
 
-/** Try one spot: set the item down there (from `h` above where it would land) and watch 60 steps. */
-function trySpot(snap, item, x, a, h) {
+/** Steps of one trial per slice of work (about a millisecond on a tall load). */
+const SLICE = 12;
+const TRIAL_STEPS = 84;
+
+/** Start trying one spot: set the item down there (from `h` above where it would land). `advance` then watches it. */
+function startSpot(snap, item, x, a, h) {
   const sim = new Sim(snap);
   const top = sim.top();
   const box = hoverBox(item, a, top);
@@ -74,19 +78,30 @@ function trySpot(snap, item, x, a, h) {
   const y = Math.min(box.yMax, Math.max(box.yMin, land.y + h));
   const before = sim.pose();
   const ni = sim.addItem(item, x, y, a);
-  let fell = false;
+  return { sim, x, a, y, land: land.what, before, ni, s: 0, fell: false };
+}
+
+/** Watch a trial up to `k` more steps; true once it has fallen or run its course. */
+function advance(t, k) {
+  const { sim } = t;
   // set down, then a short taste of the camel's weight shift (what makes top-heavy piles go)
-  for (let s = 0; s < 84; s++) {
-    if (s === 46) {
+  for (let n = 0; n < k && t.s < TRIAL_STEPS; n++, t.s++) {
+    if (t.s === 46) {
       sim.motionT = 0;
       sim.motion = shiftMotion(sim.strain().M);
     }
     sim.step();
     if (sim.fallen() >= 0) {
-      fell = true;
-      break;
+      t.fell = true;
+      return true;
     }
   }
+  return t.s >= TRIAL_STEPS;
+}
+
+/** What a finished trial came to. */
+function resultOf(t) {
+  const { sim, before, ni, x, a, y } = t;
   const after = sim.pose();
   let moved = 0;
   for (let i = 0; i < before.length; i += 3) moved += Math.hypot(after[i] - before[i], after[i + 1] - before[i + 1]) + Math.abs(wrapAngle(after[i + 2] - before[i + 2])) * 0.3;
@@ -95,7 +110,7 @@ function trySpot(snap, item, x, a, h) {
   const tilt = Math.abs(wrapAngle(b.getAngle() - a));
   const st = sim.strain();
   const height = sim.top();
-  return { x, a, y, land: land.what, fell, moved, speed: Math.hypot(v.x, v.y) + Math.abs(b.getAngularVelocity()) * 0.3, tilt, M: st.M, height };
+  return { x, a, y, land: t.land, fell: t.fell, moved, speed: Math.hypot(v.x, v.y) + Math.abs(b.getAngularVelocity()) * 0.3, tilt, M: st.M, height };
 }
 
 function scoreSpot(r, persona) {
@@ -112,11 +127,12 @@ function scoreSpot(r, persona) {
 
 /**
  * Plan where to put `item` on `snap`: an incremental search (call `work(n)` until it returns the plan), so the host can
- * spread it over frames. The plan: { x, y, a } where the paws let go.
+ * spread it over frames: each unit of work is a short slice of one trial. The plan: { x, y, a } where the paws let go.
  */
 export function createPlanner({ snap, item, persona, skill = 0.5, rng }) {
   const list = candidates(item, snap, skill, persona, rng);
   const results = [];
+  let cur = null;
   let plan = null;
   // a careful animal sets fragile things down gently (a reckless one smashes vases)
   let h = rng.range(persona.drop[0], persona.drop[1]);
@@ -125,12 +141,19 @@ export function createPlanner({ snap, item, persona, skill = 0.5, rng }) {
     get plan() {
       return plan;
     },
-    /** Test up to n more spots; returns the plan once every spot is tried. */
+    /** Do up to n more slices of the search; returns the plan once every spot is tried. */
     work(n = 4) {
       if (plan) return plan;
       for (let k = 0; k < n && results.length < list.length; k++) {
-        const c = list[results.length];
-        results.push(trySpot(snap, item, c.x, c.a, h));
+        if (!cur) {
+          const c = list[results.length];
+          cur = startSpot(snap, item, c.x, c.a, h);
+          continue;
+        }
+        if (advance(cur, SLICE)) {
+          results.push(resultOf(cur));
+          cur = null;
+        }
       }
       if (results.length < list.length) return null;
       results.sort((p, q) => scoreSpot(q, persona) - scoreSpot(p, persona));

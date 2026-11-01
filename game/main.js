@@ -1564,7 +1564,7 @@ async function boot() {
     sc.tod = 0.18;
     sc.biome = 'oasis';
     sc.camel.chew = true;
-    sc.box = { x0: -2.8, x1: 1.8, y1: 3.2 };
+    sc.box = { x0: -3.1, x1: 1.8, y1: 3.2 };
     sc.stage = () => stableSpots().stage;
     sc.ground = () => stableSpots().ground;
     audio.setMusic('menu', 0);
