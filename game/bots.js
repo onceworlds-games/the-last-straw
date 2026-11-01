@@ -118,7 +118,9 @@ export function createPlanner({ snap, item, persona, skill = 0.5, rng }) {
   const list = candidates(item, snap, skill, persona, rng);
   const results = [];
   let plan = null;
-  const h = rng.range(persona.drop[0], persona.drop[1]);
+  // a careful animal sets fragile things down gently (a reckless one smashes vases)
+  let h = rng.range(persona.drop[0], persona.drop[1]);
+  if (ITEMS[item]?.fragile && persona.care >= 0.8) h = Math.min(h, 0.1);
   return {
     get plan() {
       return plan;

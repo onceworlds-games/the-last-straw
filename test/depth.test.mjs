@@ -183,3 +183,18 @@ test('soft landings in a run: the streak pays more each time, a hard landing res
   assert.equal(c.streak, 0);
   assert.ok(STRAW >= 0);
 });
+
+test('balance: an animal-played Caravan run gets past the first towns, pays, and ends on its own', async () => {
+  const { createSolo } = await import('../game/solo.js');
+  let done = null;
+  const towns = [];
+  for (const seed of ['sim:9']) {
+    done = null;
+    const so = createSolo({ seed, kind: 'caravan', auto: true, onEvent: (type, d) => (type === 'done' ? (done = d.kind) : null) });
+    for (let t = 0; t < 1200 && !done; t += 1 / 30) so.update(1 / 30);
+    assert.ok(done, `${seed}: the run ended`);
+    assert.ok(so.c.delivered > 0, `${seed}: something was delivered`);
+    towns.push(so.c.leg);
+  }
+  assert.ok(Math.max(...towns) >= 3, `towns reached: ${towns}`);
+});

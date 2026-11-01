@@ -159,6 +159,8 @@ async function boot() {
       toast({ kind: 'level', title: `Level ${la}`, line: 'Level up', level: la });
       audio.fanfare();
     }
+    if (la >= 10) award('level-10');
+    if ((p.streakBest ?? 0) >= 7) award('week-streak');
     for (const u of newUnlocks(before, p)) {
       S.fresh.add(`${u.kind}:${u.id}`);
       toast({ kind: 'unlock', title: u.name, line: 'New in the Stable' });
@@ -189,7 +191,9 @@ async function boot() {
     if (soft) {
       progress('soft');
       S.profile.softs = (S.profile.softs ?? 0) + 1;
-    }
+      S.softRun = (S.softRun ?? 0) + 1;
+      if (S.softRun >= 5) award('soft-touch');
+    } else if ((ITEMS[item]?.kg ?? 0) > 0) S.softRun = 0;
     const key = ITEMS[item]?.key;
     if (!smash && key === 'cat') progress('cat');
     if (!smash && key === 'vase') progress('vase');
@@ -557,6 +561,11 @@ async function boot() {
         break;
       case 'arrive':
         if (loud) audio.brass([293.7, 440, 587.3]);
+        if (!isDemo) {
+          const on = so.c.snap.map((r) => ITEMS[r[0]]?.key);
+          if (on.includes('cat')) award('cat-nap');
+          if (on.filter((k) => k === 'vase').length >= 3) award('fine-china');
+        }
         S.receipt = { at: S.t, town: d.leg + 1, pay: d.pay, done: false, shown: 0 };
         break;
       case 'deliver': {
@@ -581,6 +590,7 @@ async function boot() {
             audio.snort();
           }
           if (d.leg + 1 >= 6) award('six-towns');
+          if (d.leg + 1 >= 10) award('ten-towns');
           S.profile.bestTown = Math.max(S.profile.bestTown, d.leg + 1);
           gainXp(d.kg * XP.kg);
           progress('kg', d.kg);
@@ -619,6 +629,7 @@ async function boot() {
           if (!isDemo && d.item === STRAW) award('last-straw');
         } else if (loud) audio.thud();
         if (!isDemo) {
+          S.softRun = 0;
           S.patienceLostAt = S.t + 0.6;
           if (d.result === 'lost') S.lostSign = { at: S.t + 0.5, road: d.road };
         }

@@ -54,7 +54,7 @@ export function xpBar(ctx, r, frac, label) {
 }
 
 /** A small lantern (the streak's mark), lit when the streak is alive. */
-function lantern(ctx, x, y, s, lit, t) {
+export function lantern(ctx, x, y, s, lit, t) {
   ctx.save();
   ctx.translate(x, y);
   if (lit) {

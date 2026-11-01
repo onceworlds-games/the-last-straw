@@ -323,7 +323,8 @@ export function shiftMotion(M, wobble = 1) {
 export function walkMotion(leg, town = false, M = 0, sway = 1) {
   const len = town ? 3 : 1.6;
   const steps = town ? 6 : 3;
-  const amp = 0.02 * (1 + 0.15 * (leg - 1)) * (town ? 1.5 : 1) * sway;
+  // the first roads are gentle (you learn the walk), then the sway grows town by town
+  const amp = 0.02 * Math.min(0.55 + 0.2 * (leg - 1), 1 + 0.15 * (leg - 1)) * (town ? 1.5 : 1) * sway;
   const lean = Math.max(-0.02, Math.min(0.02, -0.002 * M));
   return {
     len,

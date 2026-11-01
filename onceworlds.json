@@ -1,7 +1,7 @@
 {
   "slug": "the-last-straw",
   "name": "The Last Straw",
-  "description": "Take turns loading the camel. Don't be the one who breaks its back.",
+  "description": "Take turns loading the camel. Don't be the one who breaks its back. Solo, haul a Caravan town to town.",
   "dir": "game",
   "productionBranch": "main",
   "genre": "Party",
@@ -17,6 +17,8 @@
     { "keys": ["Q", "E", "Wheel"], "action": "Turn the item 15°" },
     { "keys": ["Click", "Space", "Enter"], "action": "Drop the item" },
     { "keys": ["Drop", "↺", "↻"], "action": "Touch buttons while you place" },
+    { "keys": ["G"], "action": "Set off for the next town (Caravan)" },
+    { "keys": ["1", "2", "3"], "action": "Take a town's gift (Caravan)" },
     { "keys": ["Esc", "P"], "action": "Pause a Caravan run" }
   ],
   "badges": [
@@ -28,7 +30,14 @@
     { "id": "survivor", "name": "Survivor", "description": "Win a match.", "icon": "store/badge-survivor.png" },
     { "id": "six-towns", "name": "Six Towns", "description": "Reach town 6 in one Caravan run.", "icon": "store/badge-six-towns.png" },
     { "id": "heavy-lifter", "name": "Heavy Lifter", "description": "Deliver 1000 kg in Caravan, all runs together.", "icon": "store/badge-heavy-lifter.png" },
-    { "id": "daily-cart", "name": "Daily Cart", "description": "Finish a Daily cart.", "icon": "store/badge-daily-cart.png" }
+    { "id": "daily-cart", "name": "Daily Cart", "description": "Finish a Daily cart.", "icon": "store/badge-daily-cart.png" },
+    { "id": "on-the-brink", "name": "On the Brink", "description": "Set off in Caravan while the camel is sweating (double pay).", "icon": "store/badge-on-the-brink.png" },
+    { "id": "soft-touch", "name": "Soft Touch", "description": "Five soft landings in a row.", "icon": "store/badge-soft-touch.png" },
+    { "id": "fine-china", "name": "Fine China", "description": "Bring three whole vases into town on one load.", "icon": "store/badge-fine-china.png" },
+    { "id": "cat-nap", "name": "Cat Nap", "description": "Bring the cat into town on a load.", "icon": "store/badge-cat-nap.png" },
+    { "id": "ten-towns", "name": "Ten Towns", "description": "Reach town 10 in one Caravan run.", "icon": "store/badge-ten-towns.png" },
+    { "id": "level-10", "name": "Seasoned", "description": "Reach level 10.", "icon": "store/badge-level-10.png" },
+    { "id": "week-streak", "name": "Week Streak", "description": "Finish a daily goal seven days in a row.", "icon": "store/badge-week-streak.png" }
   ],
   "data": {
     "daily": { "type": "list", "max": 100, "bytes": 64 }

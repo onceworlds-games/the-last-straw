@@ -257,13 +257,22 @@ export function drawCamel(ctx, lw, s = {}) {
         fy += Math.sin(w * Math.PI) * 0.16;
       }
     }
-    // folding: front hooves tuck back under the chest, hind feet come forward under the belly
-    fx = lerp(fx, L.front ? L.hip[0] + 0.42 : L.hip[0] - 0.46, f);
-    fy = lerp(fy, 0.07, f);
     fx += Math.sin(t * 41 + i * 2.3) * trem * (1 - f);
-    const foot = { x: fx, y: fy };
-    const k = knee(hip, foot, L.up * (1 - bow * 0.03), L.lo, L.bend);
+    let foot = { x: fx, y: fy };
+    let k = knee(hip, foot, L.up * (1 - bow * 0.03), L.lo, L.bend);
     k.x += -L.bend * bow * 0.05 + Math.sin(t * 37 + i) * trem * 1.5 * (1 - f);
+    if (f > 0) {
+      // kneeling: the knee comes down onto the sand (front knees forward, hind ones back) and the shin folds under the
+      // body; the folded bones turn toward us, so they look shorter
+      const kg = 0.11;
+      const up = L.up * 0.6, lo = L.lo * 0.62;
+      const drop = Math.max(0, hip.y - kg);
+      const dir = L.front ? -1 : 1;
+      const kk = { x: hip.x + dir * Math.sqrt(Math.max(0, up * up - drop * drop)), y: Math.max(kg, hip.y - up) };
+      const kf = { x: kk.x - dir * lo, y: 0.07 };
+      k = { x: lerp(k.x, kk.x, f), y: Math.max(kg * 0.9, lerp(k.y, kk.y, f)) };
+      foot = { x: lerp(foot.x, kf.x, f), y: lerp(foot.y, kf.y, f) };
+    }
     return { hip, knee: k, foot, f };
   };
   const drawLegs = (far) => {
@@ -529,7 +538,13 @@ function leg(ctx, sil, C, P, L, OL, ink, far) {
   const { hip, knee: k, foot } = P;
   const fill = far ? C.shade : C.base;
   const dark = far ? C.dark : C.shade;
-  const fet = { x: foot.x + (L.front ? 0.02 : -0.025), y: foot.y + 0.13 };
+  // the fetlock sits above the hoof, or along the shin once it lies folded on the sand
+  const f = P.f ?? 0;
+  const sd = Math.hypot(k.x - foot.x, k.y - foot.y) || 1;
+  const fet = {
+    x: foot.x + lerp(L.front ? 0.02 : -0.025, ((k.x - foot.x) / sd) * 0.13, f),
+    y: foot.y + lerp(0.13, ((k.y - foot.y) / sd) * 0.13, f),
+  };
   const toe = { x: foot.x, y: foot.y + 0.035 };
   const nrm = (a, b) => {
     const dx = b.x - a.x, dy = b.y - a.y;

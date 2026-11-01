@@ -10,6 +10,7 @@ import { PAL, drawItem, drawPortrait } from './art.js';
 import { drawCamel, foldPose, headPoint } from './camel.js';
 import { createFx } from './fx.js';
 import { foldAt } from './solo.js';
+import { levelBadge, lantern } from './stable.js';
 
 /** Drop items one by one, each settling before the next, and return the load. */
 export function stack(list) {
@@ -104,6 +105,7 @@ function scene(R, name) {
     sc.camel.chew = false;
     camel.bow = 0.8;
     camel.look = 1;
+    camel.hat = 'flowers';
     const hp = headPoint({ bow: 0.8 });
     for (let i = 0; i < 4; i++) {
       fx.sweat(hp.x + 0.1 + i * 0.05, hp.y + 0.12);
@@ -168,6 +170,8 @@ function scene(R, name) {
     sc.camel.fold = 1;
     sc.camel.chew = true;
     camel.look = 1;
+    camel.hat = 'top';
+    camel.blanket = 4;
     sc.sun = 0.85;
     sc.night = 0.7;
     sc.box = { x0: -2.6, x1: 2.9, y1: Math.max(3.4, topIt.top + 1.0) };
@@ -187,6 +191,8 @@ function scene(R, name) {
     sc.hands = { item: K.melon, x: 0.05, y: top + 0.62, a: 0.2, who: { kind: 'player', seat: 2, sleeve: 2 }, open: 0, visible: true };
     sc.camel.mood = 1;
     camel.bow = 0.45;
+    camel.hat = 'bandana';
+    camel.blanket = 2;
     sc.box = { x0: -2.45, x1: 1.75, y1: top + 1.5 };
     gy = H - 80;
     stage = { x: 60, y: L.rope.y + L.rope.h + 30, w: W - 120, h: gy - L.rope.y - L.rope.h - 30 };
@@ -281,6 +287,13 @@ const BADGE = {
   'six-towns': [PAL.ember, (ctx, r) => six(ctx, r)],
   'heavy-lifter': [PAL.violet, (ctx, r) => weight(ctx, r)],
   'daily-cart': [PAL.turq, (ctx, r) => daily(ctx, r)],
+  'on-the-brink': [PAL.rose, (ctx, r) => brink(ctx, r)],
+  'soft-touch': [PAL.violet, (ctx, r) => softTouch(ctx, r)],
+  'fine-china': [PAL.turq, (ctx, r) => vases(ctx, r)],
+  'cat-nap': [PAL.ember, (ctx, r) => catNap(ctx, r)],
+  'ten-towns': [PAL.violet, (ctx, r) => gate(ctx, r, '10')],
+  'level-10': [PAL.turq, (ctx, r) => levelBadge(ctx, 0, 0, r * 0.82, 10)],
+  'week-streak': [PAL.ember, (ctx, r) => week(ctx, r)],
 };
 
 function badge(R, id) {
@@ -366,7 +379,9 @@ function crown(ctx, r) {
   goldenStraw(ctx, -r * 0.72, y - r * 0.56, r * 0.76, y - r * 0.82, r * 0.16);
 }
 
-function six(ctx, r) {
+const six = (ctx, r) => gate(ctx, r, '6');
+
+function gate(ctx, r, n) {
   // a town gate
   ctx.beginPath();
   ctx.moveTo(-r * 0.66, r * 0.78);
@@ -380,7 +395,7 @@ function six(ctx, r) {
   ctx.lineWidth = 5;
   ctx.strokeStyle = PAL.ink;
   ctx.stroke();
-  text(ctx, '6', 0, r * 0.06, { size: r * 1.3, display: true, weight: 900, color: PAL.ember, lw: 7 });
+  text(ctx, n, 0, r * 0.06, { size: r * (n.length > 1 ? 1.0 : 1.3), display: true, weight: 900, color: PAL.ember, lw: 7 });
 }
 
 function weight(ctx, r) {
@@ -416,4 +431,72 @@ function daily(ctx, r) {
   ctx.lineTo(w / 2, -h / 2 + h * 0.27);
   ctx.stroke();
   itemInBox(ctx, K.melon, 0, h * 0.14, w * 0.62, h * 0.52, {});
+}
+
+function brink(ctx, r) {
+  // the strain dial, its needle deep in the red, and a bead of sweat
+  ctx.beginPath();
+  ctx.arc(0, r * 0.1, r * 0.78, 0, Math.PI * 2);
+  ctx.fillStyle = PAL.bone;
+  ctx.fill();
+  ctx.lineWidth = 5;
+  ctx.strokeStyle = PAL.ink;
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.arc(0, r * 0.1, r * 0.6, -Math.PI * 0.32, Math.PI * 0.05);
+  ctx.lineWidth = r * 0.2;
+  ctx.strokeStyle = PAL.rose;
+  ctx.stroke();
+  const a = -Math.PI * 0.08;
+  ctx.beginPath();
+  ctx.moveTo(0, r * 0.1);
+  ctx.lineTo(Math.cos(a) * r * 0.64, r * 0.1 + Math.sin(a) * r * 0.64);
+  ctx.lineWidth = 6;
+  ctx.strokeStyle = PAL.ink;
+  ctx.lineCap = 'round';
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.arc(0, r * 0.1, r * 0.1, 0, Math.PI * 2);
+  ctx.fillStyle = PAL.gold;
+  ctx.fill();
+  ctx.lineWidth = 3;
+  ctx.stroke();
+  // sweat
+  const dx = -r * 0.62, dy = -r * 0.56;
+  ctx.beginPath();
+  ctx.moveTo(dx, dy - r * 0.3);
+  ctx.bezierCurveTo(dx + r * 0.22, dy, dx + r * 0.2, dy + r * 0.2, dx, dy + r * 0.2);
+  ctx.bezierCurveTo(dx - r * 0.2, dy + r * 0.2, dx - r * 0.22, dy, dx, dy - r * 0.3);
+  ctx.fillStyle = '#8FD9E8';
+  ctx.fill();
+  ctx.lineWidth = 4;
+  ctx.stroke();
+  text(ctx, '×2', r * 0.3, r * 0.5, { size: r * 0.5, display: true, weight: 900, color: PAL.gold, lw: 6 });
+}
+
+function softTouch(ctx, r) {
+  // a crate set down with the soft landing's gold rings, five in a row
+  for (let i = 0; i < 3; i++) {
+    ctx.beginPath();
+    ctx.ellipse(0, r * 0.5, r * (0.5 + i * 0.16), r * (0.12 + i * 0.04), 0, 0, Math.PI * 2);
+    ctx.lineWidth = 5 - i;
+    ctx.strokeStyle = i ? 'rgba(255,200,69,0.6)' : PAL.gold;
+    ctx.stroke();
+  }
+  itemDisc(ctx, K.crate, r, 0, r * 0.08, 0.95);
+  text(ctx, '×5', r * 0.38, -r * 0.5, { size: r * 0.55, display: true, weight: 900, color: PAL.gold, lw: 6 });
+}
+
+function vases(ctx, r) {
+  [-0.48, 0.48, 0].forEach((dx, i) => itemInBox(ctx, K.vase, dx * r, r * (i === 2 ? -0.02 : 0.14), r * 0.62, r * (i === 2 ? 1.3 : 1.05), { cap: 1e4 }));
+}
+
+function catNap(ctx, r) {
+  itemInBox(ctx, K.crate, 0, r * 0.4, r * 0.9, r * 0.66, { cap: 1e4 });
+  itemInBox(ctx, K.cat, 0, -r * 0.32, r * 1.45, r * 0.8, { cap: 1e4 });
+}
+
+function week(ctx, r) {
+  lantern(ctx, 0, -r * 0.05, r * 1.1, true, 0.3);
+  text(ctx, '7', 0, r * 0.02, { size: r * 0.6, display: true, weight: 900, color: PAL.ink, outline: false });
 }
