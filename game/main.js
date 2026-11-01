@@ -391,7 +391,11 @@ async function boot() {
   // ---------------------------------------------------------------- local runs (Caravan, Daily, the title's animals)
 
   function newDemo() {
-    S.demo = createSolo({ seed: `demo:${Math.floor(Math.random() * 1e9)}`, kind: 'demo', auto: true, onEvent: (type, d) => onSoloEvent(type, d, true) });
+    // captures only (the autoplay, never in production): `&seed=` replays the title's first load
+    const capSeed = autoplay && !S.demoSeeded ? params.get('seed') : null;
+    S.demoSeeded = true;
+    const seed = capSeed ? `demo:${capSeed.slice(0, 40)}` : `demo:${Math.floor(Math.random() * 1e9)}`;
+    S.demo = createSolo({ seed, kind: 'demo', auto: true, onEvent: (type, d) => onSoloEvent(type, d, true) });
     S.camel.stand = S.lastDemoBroke ? 1 : 0;
     S.lastDemoBroke = false;
   }
@@ -400,8 +404,10 @@ async function boot() {
     audio.init();
     const day = today();
     const scored = kind === 'daily' ? !(S.daily && S.daily.day === day) : true;
-    const seed = kind === 'daily' ? dailySeed(day) : `caravan:${Math.floor(Math.random() * 1e9)}`;
     const auto = autoplay === 'caravan';
+    // captures only (the autoplay, never in production): `&seed=` replays one run
+    const capSeed = auto ? params.get('seed') : null;
+    const seed = kind === 'daily' ? dailySeed(day) : capSeed ? capSeed.slice(0, 40) : `caravan:${Math.floor(Math.random() * 1e9)}`;
     S.solo = createSolo({ seed, kind, auto, onEvent: (type, d) => onSoloEvent(type, d, false) });
     S.solo.scored = scored;
     S.solo.day = day;
@@ -1533,9 +1539,12 @@ async function boot() {
     const W = L.W, H = L.H;
     const top = L.rope.y + L.rope.h + 10;
     if (L.portrait) {
-      const ph = Math.min(H * 0.56, 560);
+      const ph = Math.min(H * 0.66, 620);
       const panel = { x: 10, y: H - ph - 10, w: W - 20, h: ph };
-      return { panel, stage: { x: 10, y: top + 40, w: W - 20, h: Math.max(80, panel.y - top - 60) }, back: { x: 12, y: top, w: 110, h: 50 } };
+      // the camel stands on the panel's top edge, above the wardrobe, so what it wears stays in sight
+      const y0 = L.rope.y + 4;
+      const ground = panel.y - 8;
+      return { panel, ground, stage: { x: 10, y: y0 + 50, w: W - 20, h: Math.max(80, ground - y0 - 50) }, back: { x: 12, y: y0, w: 110, h: 50 } };
     }
     const pw = Math.min(W * 0.56, 640);
     const panel = { x: W - pw - 14, y: top, w: pw, h: H - top - 14 };
@@ -1552,6 +1561,7 @@ async function boot() {
     sc.camel.chew = true;
     sc.box = { x0: -2.8, x1: 1.8, y1: 3.2 };
     sc.stage = () => stableSpots().stage;
+    sc.ground = () => stableSpots().ground;
     audio.setMusic('menu', 0);
     const p = S.profile;
     goalsToday(p, today());
@@ -1563,7 +1573,7 @@ async function boot() {
       ctx.translate((1 - k) * (L.portrait ? 0 : 80), (1 - k) * (L.portrait ? 80 : 0));
       ctx.globalAlpha = k;
       const P = sp.panel;
-      const dayH = clamp(P.h * 0.36, 150, 210);
+      const dayH = L.portrait ? clamp(P.h * 0.27, 128, 160) : clamp(P.h * 0.36, 150, 210);
       drawDayBoard(ctx, { x: P.x, y: P.y, w: P.w, h: dayH }, { profile: p, day: today(), t: S.t, popId: S.goalPop?.i, popAge: S.goalPop ? S.t - S.goalPop.at : null });
       const W0 = { x: P.x, y: P.y + dayH + 6, w: P.w, h: P.h - dayH - 6 };
       const list = drawWardrobe(ctx, W0, { profile: p, look: lookOf(p), sleeve: mySleeve(), t: S.t, fresh: S.fresh });
@@ -1690,6 +1700,7 @@ async function boot() {
       L.stage.h = Math.max(80, L.gy - T.bottom);
     }
     if (sc.stage) L.stage = sc.stage(L);
+    if (sc.ground) L.gy = sc.ground(L) ?? L.gy;
 
     // the camel's own animation: squash, side-eye, knees
     const A = S.camel;

@@ -498,9 +498,9 @@ with its license, imported by relative path so node tests use the same file.
   camel's layer with its shadow and rim light, the hands, the grade; `game/backdrop.js` the land and sky; `game/look.js`
   the palette, the time of day and the stops; `game/camel.js`; `game/art.js` items, hands, portraits; `game/ui.js` tags,
   dial, cart, signs, slabs; `game/fx.js`; `game/audio.js`; `game/poster.js` store art.
-- Captures only (never in production): `?autoplay=1` plays this page's turns with the animals' brain (`autoplay=caravan` a
-  Caravan run, `&endat=<s>` ends it then; `autoplay=lobby` / `autoplay=stable` open those screens; `&xp=` and `&streak=`
-  give the save some progress), and `&rounds=1` asks for a shorter match.
+- Captures only (never in production): `?autoplay=1` plays this page's turns with the animals' brain (`autoplay=caravan`
+  a Caravan run, `&seed=` replays one run, `&endat=<s>` ends it then; `autoplay=lobby` / `autoplay=stable` open those
+  screens; `&xp=` and `&streak=` give the save some progress), and `&rounds=1` asks for a shorter match.
 - Canvas at `ow.settings.pixelRatio(2)`, flat fills drawn every frame; physics only where it runs (host, the placer's
   prediction, solo, attract); audio suspends and solo runs pause on `visibilitychange`.
 

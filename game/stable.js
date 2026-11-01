@@ -345,18 +345,47 @@ export function drawWardrobe(ctx, r, o) {
   ctx.strokeStyle = PAL.ink;
   ctx.stroke(frame);
   const m = 8;
-  const rowH = (r.h - m * 2) / KINDS.length;
-  const labelW = Math.min(86, r.w * 0.2);
+  const gap = 6;
+  // wide: a row per kind with its name on the left; narrow (a phone held upright): the name above, swatches wrapping
+  const narrow = r.w < 560;
+  const lists = KINDS.map((K) => UNLOCKS.filter((u) => u.kind === K.kind));
+  let place;
+  if (!narrow) {
+    const rowH = (r.h - m * 2) / KINDS.length;
+    const labelW = Math.min(86, r.w * 0.2);
+    place = (ri, i, n) => {
+      const avail = r.w - m * 2 - labelW - 6;
+      const sw = Math.min(rowH - 10, (avail - (n - 1) * gap) / n);
+      const y0 = r.y + m + ri * rowH;
+      return { sw, x: r.x + m + labelW + i * (sw + gap), y: y0 + (rowH - sw) / 2, lx: r.x + m + 6, ly: y0 + rowH / 2, ls: Math.min(20, rowH * 0.3) };
+    };
+  } else {
+    const labelH = 20;
+    const fit = (sw) => {
+      const per = Math.max(1, Math.floor((r.w - m * 2 + gap) / (sw + gap)));
+      return { per, h: m * 2 + lists.reduce((h, l) => h + labelH + Math.ceil(l.length / per) * (sw + gap), 0) };
+    };
+    let sw = 66;
+    while (sw > 36 && fit(sw).h > r.h) sw -= 2;
+    const { per } = fit(sw);
+    const tops = [];
+    let y = r.y + m;
+    for (const l of lists) {
+      tops.push(y);
+      y += labelH + Math.ceil(l.length / per) * (sw + gap);
+    }
+    place = (ri, i) => ({ sw, x: r.x + m + (i % per) * (sw + gap), y: tops[ri] + labelH + Math.floor(i / per) * (sw + gap), lx: r.x + m + 2, ly: tops[ri] + labelH / 2, ls: 16 });
+  }
   KINDS.forEach((K, ri) => {
-    const y0 = r.y + m + ri * rowH;
-    const list = UNLOCKS.filter((u) => u.kind === K.kind);
-    text(ctx, K.name, r.x + m + 6, y0 + rowH / 2, { size: Math.min(20, rowH * 0.3), align: 'left', display: true, weight: 900, color: PAL.bone, lw: 4 });
+    const list = lists[ri];
     const n = list.length;
-    const avail = r.w - m * 2 - labelW - 6;
-    const sw = Math.min(rowH - 10, (avail - (n - 1) * 6) / n);
+    const head = place(ri, 0, n);
+    text(ctx, K.name, head.lx, head.ly, { size: head.ls, align: 'left', display: true, weight: 900, color: PAL.bone, lw: 4 });
     list.forEach((u, i) => {
-      const x = r.x + m + labelW + i * (sw + 6);
-      const y = y0 + (rowH - sw) / 2;
+      const P = place(ri, i, n);
+      const sw = P.sw;
+      const x = P.x;
+      const y = P.y;
       const box = { x, y, w: sw, h: sw };
       const open = isUnlocked(o.profile, u);
       const on = K.kind === 'sleeve' ? o.sleeve === u.id : o.look[K.kind] === u.id;
