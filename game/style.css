@@ -1,0 +1,6 @@
+@font-face { font-family: 'Big Shoulders Display'; font-style: normal; font-weight: 900; font-display: swap; src: url('fonts/big-shoulders-display-900.woff2') format('woff2'); }
+@font-face { font-family: 'Big Shoulders Display'; font-style: normal; font-weight: 800; font-display: swap; src: url('fonts/big-shoulders-display-800.woff2') format('woff2'); }
+@font-face { font-family: 'Archivo'; font-style: normal; font-weight: 100 900; font-display: swap; src: url('fonts/archivo-latin-wght.woff2') format('woff2'); }
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+html, body { margin: 0; height: 100%; overflow: hidden; background: #3B2160; touch-action: none; overscroll-behavior: none; user-select: none; -webkit-user-select: none; }
+canvas#cv { position: fixed; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; cursor: default; }
