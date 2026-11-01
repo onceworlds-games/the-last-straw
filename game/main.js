@@ -188,6 +188,8 @@ async function boot() {
   function myLoadHeld({ item, soft, smash }) {
     gainXp(XP.load + (soft ? XP.soft : 0));
     progress('loads');
+    // the soft-landing hint goes once you've done one (or after a few loads without)
+    if (soft || (S.softMiss = (S.softMiss ?? 0) + 1) >= 4) hintDone('soft');
     if (soft) {
       progress('soft');
       S.profile.softs = (S.profile.softs ?? 0) + 1;
@@ -270,7 +272,13 @@ async function boot() {
     text(ctx, t.line, x + 62, y + h * 0.76, { size: 14, align: 'left', weight: 800, color: PAL.violet, outline: false });
     ctx.restore();
   }
-  const award = (id) => safe(() => ow?.badges?.award(id)?.catch?.(() => {}));
+  // each badge is asked for once a visit (the platform keeps it; no need to ask on every load)
+  const awarded = new Set();
+  const award = (id) => {
+    if (awarded.has(id)) return;
+    awarded.add(id);
+    safe(() => ow?.badges?.award(id)?.catch?.(() => {}));
+  };
   const today = () => dayNumber(safe(() => ow?.now?.(), null) ?? Date.now());
 
   // ---------------------------------------------------------------- the room
@@ -1637,6 +1645,7 @@ async function boot() {
     if (!S.profile.hints.aim) hint('aim', touch ? 'Drag to aim' : 'Move to aim');
     else if (!S.profile.hints.turn) hint('turn', touch ? 'Turn it' : 'Q E turn', touch ? 'turn' : null);
     else if (!S.profile.hints.drop) hint('drop', touch ? 'Tap Drop' : 'Click to drop', touch ? 'drop' : null);
+    else if (!S.profile.hints.soft) hint('soft', 'Lower it: soft bonus');
   }
 
   const view = createMatchView({
