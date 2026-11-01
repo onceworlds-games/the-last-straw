@@ -21,6 +21,7 @@ export const COATS = {
   ash: { base: '#B9A79A', light: '#D9CBBE', shade: '#8F7D72', dark: '#62544C', belly: '#E3D8CC', pad: '#4F4440', mane: '#7D6B60' },
   rose: { base: '#E59B86', light: '#F8C5B2', shade: '#C2725F', dark: '#8F4A3E', belly: '#F9D4C4', pad: '#6A3B33', mane: '#B5624F' },
   gold: { base: '#E8B44C', light: '#FFDC86', shade: '#BF8A2A', dark: '#8A5E1A', belly: '#FBE3A4', pad: '#6A4A1C', mane: '#B07B22' },
+  onyx: { base: '#5E4B63', light: '#86708A', shade: '#45354C', dark: '#2B1F33', belly: '#8F7B90', pad: '#22182A', mane: '#3A2B42' },
 };
 
 /** Saddle blankets (the striped rug under the tray). */
@@ -31,9 +32,10 @@ export const BLANKETS = [
   { bands: ['#2E6E5A', PAL.gold, '#2E6E5A', PAL.rose, '#2E6E5A', PAL.gold, '#2E6E5A'], dots: PAL.bone, fringe: PAL.rose },
   { bands: [PAL.ink, PAL.gold, PAL.ink, PAL.gold, PAL.ink, PAL.gold, PAL.ink], dots: PAL.gold, fringe: PAL.gold },
   { bands: [PAL.bone, PAL.rose, PAL.bone, PAL.rose, PAL.bone, PAL.rose, PAL.bone], dots: PAL.rose, fringe: PAL.rose },
+  { bands: ['#7A1F45', PAL.gold, PAL.violet, PAL.gold, '#7A1F45', PAL.gold, PAL.violet, PAL.gold, '#7A1F45'], dots: PAL.gold, fringe: PAL.gold },
 ];
 
-export const HATS = ['none', 'sun', 'flowers', 'bandana', 'shades', 'top', 'crown'];
+export const HATS = ['none', 'sun', 'flowers', 'bandana', 'shades', 'top', 'crown', 'fez', 'turban'];
 
 /** The body's extra drop and tilt for a fold in progress (0 standing, 1 kneeling). Front legs go first. */
 export function foldPose(fold) {
@@ -1005,6 +1007,74 @@ export function drawHat(ctx, hat, lw, ink, t) {
     ctx.fillStyle = PAL.rose;
     ctx.beginPath();
     ctx.arc(0, 0.04, 0.02, 0, TAU);
+    ctx.fill();
+  } else if (hat === 'fez') {
+    // a trader's fez, its tassel swinging
+    ctx.translate(-0.08, 0.11);
+    ctx.rotate(0.16);
+    ctx.scale(1.18, 1.18);
+    ctx.lineWidth = (lw * 2) / 1.18;
+    const p = new Path2D();
+    p.moveTo(-0.085, 0);
+    p.lineTo(-0.065, 0.15);
+    p.quadraticCurveTo(0, 0.165, 0.065, 0.15);
+    p.lineTo(0.085, 0);
+    p.quadraticCurveTo(0, -0.02, -0.085, 0);
+    p.closePath();
+    ctx.fillStyle = '#C8323F';
+    ctx.fill(p);
+    ctx.stroke(p);
+    ctx.fillStyle = 'rgba(255,220,200,0.35)';
+    ctx.fillRect(-0.06, 0.02, 0.025, 0.11);
+    ctx.fillStyle = '#8E1F2C';
+    ctx.beginPath();
+    ctx.ellipse(0, 0.15, 0.066, 0.016, 0, 0, TAU);
+    ctx.fill();
+    ctx.stroke();
+    const sw = Math.sin(t * 3.1) * 0.035;
+    ctx.beginPath();
+    ctx.moveTo(0, 0.158);
+    ctx.quadraticCurveTo(0.06, 0.17, 0.09 + sw, 0.06);
+    ctx.stroke();
+    ctx.fillStyle = PAL.ink;
+    ctx.beginPath();
+    ctx.ellipse(0.09 + sw, 0.045, 0.016, 0.03, sw * 2, 0, TAU);
+    ctx.fill();
+  } else if (hat === 'turban') {
+    // a sultan's turban: wound cloth, a jewel, a plume
+    ctx.translate(-0.08, 0.1);
+    ctx.rotate(0.12);
+    ctx.fillStyle = PAL.bone;
+    ctx.beginPath();
+    ctx.ellipse(0, 0.07, 0.16, 0.1, 0, 0, TAU);
+    ctx.fill();
+    ctx.stroke();
+    ctx.strokeStyle = PAL.boneDark;
+    ctx.lineWidth = lw * 1.6;
+    for (const k of [-0.5, 0, 0.5]) {
+      ctx.beginPath();
+      ctx.ellipse(0, 0.07 + k * 0.06, 0.15 - Math.abs(k) * 0.04, 0.03, -0.25 + k * 0.3, Math.PI * 1.05, Math.PI * 1.95);
+      ctx.stroke();
+    }
+    ctx.strokeStyle = ink;
+    ctx.lineWidth = lw * 2;
+    const sw = Math.sin(t * 2.3) * 0.04;
+    ctx.fillStyle = PAL.rose;
+    ctx.beginPath();
+    ctx.moveTo(-0.005, 0.12);
+    ctx.quadraticCurveTo(-0.07 + sw, 0.22, -0.02 + sw * 1.6, 0.31);
+    ctx.quadraticCurveTo(0.03 + sw, 0.22, 0.025, 0.12);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = PAL.gold;
+    ctx.beginPath();
+    ctx.ellipse(0, 0.105, 0.032, 0.038, 0, 0, TAU);
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = PAL.turq;
+    ctx.beginPath();
+    ctx.arc(0, 0.105, 0.016, 0, TAU);
     ctx.fill();
   } else if (hat === 'bandana') {
     ctx.fillStyle = PAL.turq;

@@ -10,7 +10,7 @@ import { PAL, drawItem, drawPortrait } from './art.js';
 import { drawCamel, foldPose, headPoint } from './camel.js';
 import { createFx } from './fx.js';
 import { foldAt } from './solo.js';
-import { levelBadge, lantern } from './stable.js';
+import { levelBadge, lantern, rankEmblem, drawRankCard } from './stable.js';
 
 /** Drop items one by one, each settling before the next, and return the load. */
 export function stack(list) {
@@ -179,6 +179,8 @@ function scene(R, name) {
     stage = { x: 40, y: 20, w: W - 80, h: gy - 20 };
     fx.confetti(W, 120);
     for (let i = 0; i < 70; i++) fx.update(1 / 60, 1 / 60);
+    // your rank's card on the sand, a star lighting
+    after = (ctx) => drawRankCard(ctx, { x: 24, y: H - 96, w: 340, h: 70 }, { rank: 1, name: 'Trader', stars: 5, need: 6, delta: 1, pop: (i) => (i === 4 ? 0.45 : 0), t: 0.4 });
   } else if (name === 'multi') {
     sc.items = itemsOf(stack([
       { k: 'rug', x: 0 },
@@ -351,6 +353,7 @@ const BADGE = {
   'ten-towns': [PAL.violet, (ctx, r) => gate(ctx, r, '10')],
   'level-10': [PAL.turq, (ctx, r) => levelBadge(ctx, 0, 0, r * 0.82, 10)],
   'week-streak': [PAL.ember, (ctx, r) => week(ctx, r)],
+  sultan: [PAL.turq, (ctx, r) => rankEmblem(ctx, 0, 0, r * 0.86, 4, 0)],
 };
 
 function badge(R, id) {

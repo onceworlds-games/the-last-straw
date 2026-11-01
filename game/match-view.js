@@ -14,8 +14,8 @@ import { buildHeap } from './scene.js';
 import { foldPose } from './camel.js';
 import { PAL } from './art.js';
 import { text, slab, drawSign, drawHint, signpost } from './ui.js';
-import { drawDayBoard } from './stable.js';
-import { goalsToday, levelOf } from './progress.js';
+import { drawDayBoard, rankEmblem, drawRankCard } from './stable.js';
+import { goalsToday, levelOf, rankOf } from './progress.js';
 import * as audio from './audio.js';
 
 const ow = window.onceworlds;
@@ -36,6 +36,13 @@ export function createMatchView(app) {
   const { S, fx, hits, autoplay, hint, hintDone, award, saveProfile, mySleeve, avatarOf, beginHand, clampHand, ghostOf, doPick, doDrop, landJuice, placeHints, baseScene, today } = app;
 
   // ------------------------------------------------ the room: lobby, countdown, rounds, results
+
+  const myRank = () => rankOf(S.profile.stars).rank;
+  /** A small rank emblem for a player's tag (what they show; nothing for the animals). */
+  const emblemOf = (id, me) => {
+    const r = me ? myRank() : S.net?.rankOf?.(id);
+    return Number.isInteger(r) ? (ctx, x, y, size) => rankEmblem(ctx, x, y, size, r, S.t) : null;
+  };
 
   function seatTags(m, d, phase) {
     const room = S.room;
@@ -61,6 +68,7 @@ export function createMatchView(app) {
         faded: !!s.left || !!s.away,
         zero,
         avatar: s.bot ? null : avatarOf(s.id),
+        emblem: s.bot ? null : emblemOf(s.id, s.me),
       };
     });
   }
@@ -92,12 +100,14 @@ export function createMatchView(app) {
       const results = m.results;
       lob.players.forEach((p, i) => {
         const res = results?.find?.((r) => r.id === p.id);
-        tags.push({ id: p.id, name: p.name, seat: i, me: p.me, host: p.host, kg: res ? Number(res.points) || 0 : 0, label: res ? undefined : p.me ? 'You' : p.ready ? 'Ready' : '·', place: res?.place, avatar: avatarOf(p.id), faded: p.away });
+        tags.push({ id: p.id, name: p.name, seat: i, me: p.me, host: p.host, kg: res ? Number(res.points) || 0 : 0, label: res ? undefined : p.me ? 'You' : p.ready ? 'Ready' : '·', place: res?.place, avatar: avatarOf(p.id), faded: p.away, emblem: emblemOf(p.id, p.me) });
       });
       const nb = clamp(lob.bots ?? 0, 0, 6 - tags.length);
       for (let i = 0; i < nb; i++) tags.push({ id: `bot:${i}`, name: BOT_NAMES[i % BOT_NAMES.length], seat: tags.length, bot: true, kg: 0, label: '', faded: true, invite: true });
-    } else tags.push({ id: S.me.id, name: S.me.name, seat: 0, me: true, kg: 0, label: 'You', avatar: avatarOf(S.me.id) });
+    } else tags.push({ id: S.me.id, name: S.me.name, seat: 0, me: true, kg: 0, label: 'You', avatar: avatarOf(S.me.id), emblem: emblemOf(S.me.id, true) });
     sc.tags = tags;
+    // tell the room my sleeves and rank (what my tag shows on their screens)
+    safe(() => S.net?.setHover?.(null, null, mySleeve(), myRank()));
     // the cart carries the host's board
     const set = net0settings();
     const can = !!room?.isHost && m?.phase === 'lobby';
@@ -170,6 +180,7 @@ export function createMatchView(app) {
       else audio.drum(true);
       S.beat = null;
       S.pred = null;
+      S.rankRes = null;
       fx.clear();
     }
     S.camel.stand = Math.max(0, S.camel.stand - wdt / 1.5);
@@ -255,7 +266,7 @@ export function createMatchView(app) {
         sc.hands = { item, x: S.hand.x, y: S.hand.y, a: S.hand.a, who: whoOf(seat, seatIx), open: 0, visible: true };
         sc.ghost = ghostOf(d.snap, k);
         // presence: where my hands are
-        net.setHover(k, S.hand, mySleeve());
+        net.setHover(k, S.hand, mySleeve(), myRank());
       } else {
         let h = null;
         if (seat?.bot && checkPath(d.path)) h = pathAt(d.path, now);
@@ -625,11 +636,12 @@ export function createMatchView(app) {
     sc.box = { x0: -2.6, x1: 2.9, y1: Math.max(3.6, (topIt?.top ?? 2) + 2.0) };
     sc.tags = (m.seats ?? []).map((s, i) => {
       const r = res.find((x) => x.id === s.id);
-      return { id: s.id, name: s.name, seat: i, bot: !!s.bot, me: !!s.me, kg: Number(r?.points) || 0, place: r?.place, avatar: s.bot ? null : avatarOf(s.id) };
+      return { id: s.id, name: s.name, seat: i, bot: !!s.bot, me: !!s.me, kg: Number(r?.points) || 0, place: r?.place, avatar: s.bot ? null : avatarOf(s.id), emblem: s.bot ? null : emblemOf(s.id, s.me) };
     });
     sc.tags.sort((a, b) => (a.place ?? 9) - (b.place ?? 9));
     const room = S.room;
     sc.hud.push((ctx) => {
+      rankCard(ctx);
       const w = winner ? `${winner.name} wins` : 'Results';
       const age = S.t - S.resultsAt;
       drawSign(ctx, app.L.center.x, app.L.rope.y + app.L.rope.h + (app.L.phone ? 50 : 70), [{ s: w, size: app.L.phone ? 36 : 54 }], clamp(age / 0.4, 0, 1));
@@ -664,8 +676,88 @@ export function createMatchView(app) {
       award('survivor');
       safe(() => ow?.leaderboards?.submit('wins', p.wins)?.catch?.(() => {}));
     }
-    app.matchPlayed?.(mine?.place === 1);
+    app.matchPlayed?.(mine?.place === 1, mine?.place, Array.isArray(standings) ? standings.length : 0);
     saveProfile();
+  }
+
+  /**
+   * The trade rank's card on the sand after a match: the stars this match moved light (or drop) one by one, and a new
+   * rank turns the emblem over.
+   */
+  function rankCard(ctx) {
+    const R = S.rankRes;
+    if (!R) return;
+    const L = app.L;
+    const age = S.t - Math.max(R.at, S.resultsAt ?? 0) - 0.9;
+    if (age < 0) return;
+    // the steps: one star at a time, with a pause and the turn-over where a rank fills
+    if (!R.steps) {
+      R.steps = [];
+      let at = 0.55;
+      const sign = Math.sign(R.delta);
+      for (let k = 1; k <= Math.abs(R.delta); k++) {
+        const total = R.before.total + sign * k;
+        R.steps.push({ at, total });
+        at += 0.32;
+        if (rankOf(total).rank > rankOf(total - sign).rank) {
+          R.flipAt = at + 0.25;
+          at += 1.0;
+        }
+      }
+    }
+    let shown = R.before.total;
+    let lit = -1;
+    for (let i = 0; i < R.steps.length; i++) {
+      const st = R.steps[i];
+      if (age >= st.at) {
+        shown = st.total;
+        lit = i;
+      }
+    }
+    if (lit > (R.played ?? -1)) {
+      R.played = lit;
+      if (R.delta > 0) audio.soft(Math.min(3, lit + 1));
+      else audio.thud();
+    }
+    const flipping = R.flipAt != null;
+    const flipped = flipping && age >= R.flipAt;
+    if (flipping && flipped && !R.flipDone) {
+      R.flipDone = true;
+      audio.fanfare();
+      fx.confetti(L.W, 50);
+      app.toast?.({ kind: 'rank', title: R.after.name, line: 'New rank', rank: R.after.rank });
+    }
+    // what the card shows: the old rank filled to the top until it turns over
+    let V = rankOf(shown);
+    if (flipping && !flipped && V.rank > R.before.rank) V = { ...R.before, stars: R.before.need };
+    const prevLit = R.steps[lit]?.total ?? null;
+    // the card: on the sand, beside the button when the screen is wide, else above it
+    const cw = Math.min(L.phone ? 300 : 340, L.W - 24), ch = L.phone ? 62 : 70;
+    const side = L.W >= cw * 2 + 300;
+    const x = side ? 16 : L.W / 2 - cw / 2;
+    const y0 = side ? L.H - ch - 18 : clamp(L.gy + 14, L.H * 0.5, L.H - 100 - ch);
+    const rise = 1 - (1 - clamp(age / 0.35, 0, 1)) ** 3;
+    const y = y0 + (1 - rise) * (ch + 40);
+    let flipX = 1;
+    if (flipping && Math.abs(age - R.flipAt) < 0.22) flipX = Math.max(0.04, Math.abs(age - R.flipAt) / 0.22);
+    const stepAge = lit >= 0 ? age - R.steps[lit].at : 9;
+    const popIdx = R.delta > 0 && prevLit != null ? (V.rank === R.before.rank && rankOf(prevLit).rank > R.before.rank ? V.need - 1 : rankOf(prevLit).stars - 1) : -1;
+    ctx.save();
+    ctx.globalAlpha = rise;
+    drawRankCard(ctx, { x, y, w: cw, h: ch }, {
+      rank: V.rank,
+      name: V.name,
+      stars: V.stars,
+      need: V.need,
+      delta: R.delta,
+      flipX,
+      bulge: flipped ? Math.max(0, 0.25 - (age - R.flipAt)) : 0,
+      pop: (i) => (i === popIdx ? Math.max(0, 1 - stepAge / 0.35) : 0),
+      fall: (i) => (R.delta < 0 && i === V.stars && stepAge < 0.7 ? Math.max(0.01, stepAge / 0.7) : 0),
+      small: L.phone,
+      t: S.t,
+    });
+    ctx.restore();
   }
 
   // ------------------------------------------------ the autoplay (captures only): this page's turns played by the animals' brain

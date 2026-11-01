@@ -27,8 +27,8 @@ Genre: Party. 2D side view. 1-6 players, bots in empty seats.
 5. **How you set it down matters.** A slow, low landing is *soft* and pays a bonus that grows with soft landings in a
    row; some items have a mechanic of their own (a vase smashes when dropped hard, a cat strolls along the load, a hay
    bale is a wide base); from round 2 every round has a twist. Mastery you can see on every turn.
-6. **You keep something between visits**: levels, a Stable of camel coats, blankets, hats and sleeves earned by playing,
-   three goals a day and a streak.
+6. **You keep something between visits**: levels, a trade rank that matches move (Peddler to Sultan), a Stable of camel
+   coats, blankets, hats and sleeves earned by playing, three goals a day and a streak.
 7. **Bots are desert animals** (Fennec, Tortoise, Vulture, Gecko, Jerboa) with habits of their own, not people.
 8. **Mouse:** the held item follows the pointer and a click drops it (no holding a button while aiming). Touch: drag
    anywhere to move it (it moves with the finger, never under it), buttons to turn it, a Drop button.
@@ -182,7 +182,7 @@ The host's page decides everything; every other page draws it.
 
 - **Bests** (`ow.save` key `profile`): matches won, Caravan best (kg and town), lifetime kg delivered, dailies finished,
   first-round hints seen, sleeves unlocked and chosen. Key `daily`: `{ day, kg, town }`.
-- **Leaderboards**: `wins` (matches won), `caravan` (best kg in one run).
+- **Leaderboards**: `wins` (matches won), `caravan` (best kg in one run), `trade-rank` (stars in all).
 - **Today's board**: `ow.data.game` list `daily` (`max: 100, bytes: 64`). A player pushes `{ d: dayNumber, kg, t: town }`
   only when their scored daily run beats their own best for today (one push a day at most). Readers keep entries whose `d`
   is today, whose numbers are integers in range, and whose kg is possible for that town (every load an anvil), the best
@@ -190,10 +190,19 @@ The host's page decides everything; every other page draws it.
 - **Levels** (`profile.xp`): XP for every load that holds (2, +5 soft), every kg delivered (1), every match (20, +40 a
   win) and every daily goal (100, up to +70% with the streak). Level n needs `90 (n-1)^1.45` XP in all (two good runs a
   level early on, about 30 hours to level 40). A level-up is a toast, a fanfare and, usually, something new in the Stable.
-- **The Stable** (signpost in the lobby): the camel on the left, the day's board and the wardrobe on the right: 6 coats
-  (Sand, Cream, Cocoa, Ash, Rose, Gold), 6 saddle blankets, 7 hats (Sun hat, Flowers, Bandana, Shades, Top hat, Crown)
-  and 6 sleeve patterns. Each is earned by a level or a feat (Gold coat: town 10; Crown: a 7-day streak; Candy blanket:
-  a 3-day streak; sleeves: a win, town 3, 3 dailies, level 11, Steady Hand); a locked one says what earns it. The camel
+- **Trade rank** (`profile.stars`, `profile.rankBest`): every match moves stars by your place: a win +2, second of four
+  or more +1, last of three or more -1 (a duel's loser keeps them). Peddler (4 stars), Trader (6), Merchant (8),
+  Caravaneer (10), then Sultan, where the stars just count up (28 to get there: about two dozen matches for someone who
+  wins half of them, a few evenings for most). A rank once reached is never lost, only stars inside it. On the results
+  a card on the sand lights (or drops) the stars one by one and a new rank turns the emblem over with a fanfare; each
+  rank's emblem (a wooden token with a sack, a copper disc with scales, a brass octagon with coins, a star with the camel,
+  a gold star with a crown and rays) shows on the day's board. Ranks dress the camel: Fez (Trader), Royal blanket
+  (Merchant), Onyx coat (Caravaneer), Turban (Sultan).
+- **The Stable** (signpost in the lobby): the camel on the left, the day's board and the wardrobe on the right: 7 coats
+  (Sand, Cream, Cocoa, Ash, Rose, Gold, Onyx), 7 saddle blankets, 9 hats (Sun hat, Flowers, Bandana, Shades, Top hat,
+  Crown, Fez, Turban) and 6 sleeve patterns. Each is earned by a level, a rank or a feat (Gold coat: town 10; Crown: a
+  7-day streak; Candy blanket: a 3-day streak; sleeves: a win, town 3, 3 dailies, level 11, Steady Hand); a locked one
+  says what earns it. The camel
   you dress is the one you play with (Caravan, the lobby); your sleeves are what everyone sees when you place. New
   unlocks get a rose dot until you look.
 - **Today's goals** (`profile.goals`): three a day, the same for everyone (from the day's seed), growing in size: deliver
@@ -220,6 +229,7 @@ The host's page decides everything; every other page draws it.
 | `ten-towns` | Ten Towns | Reach town 10 in one Caravan run. |
 | `level-10` | Seasoned | Reach level 10. |
 | `week-streak` | Week Streak | Finish a daily goal seven days in a row. |
+| `sultan` | Sultan | Climb the trade ranks in matches to Sultan. |
 
 ## Balance and timing (the numbers)
 
@@ -322,7 +332,8 @@ bone signboards.
 - **Lobby** (room phase lobby): the empty camel chewing, dressed as you dressed it; the tag rope across the top with up to 6 luggage tags (avatar or
   animal portrait, name, a seat symbol ● ▲ ■ ◆ ★ ⬢ in the seat colour, host marked with a small key; tap your own to change
   sleeves, an empty one to invite); the cart on the left with the settings board (three rows; the host taps to cycle, others
-  see the values); the day's board on the right (level and XP, the streak's lantern, today's three goals with ticks) and
+  see the values); the day's board on the right (level and XP, the streak's lantern, your rank and its stars, today's
+  three goals with ticks) and
   three signposts under it (hidden for a private server's host with friends waiting): "Stable" ("New look" when
   something is unlocked), "Caravan" and "Daily cart" (today's kg or "New"); everything above the platform's Ready strip. Results
   of the last match stay on the tags (place numbers) until the next one starts.
@@ -340,8 +351,9 @@ bone signboards.
 - **Results**: the camel lying in front of the whole match's junk heaped on the sand (each item resting on its own edges on
   what is under it), the last item on the peak with the
   winner's avatar (or animal) on it wearing the golden straw like a crown; "Ann wins" on a sign; tags hang 1st to 6th with
-  total kg; straw confetti and a fanfare. Public: a sand bar runs 25 s back to the lobby. Private: the host's "Back to
-  lobby" slab; everyone else sees "Waiting for" the host.
+  total kg; straw confetti and a fanfare; your rank's card rises on the sand (bottom left, or above the slab on a narrow
+  screen): the emblem, the rank, its stars lighting or dropping one by one, "+2" / "-1" / "±0". Public: a sand bar runs
+  25 s back to the lobby. Private: the host's "Back to lobby" slab; everyone else sees "Waiting for" the host.
 - **Watching** (latecomer): the scene as everyone sees it, with "Next round" by the cart.
 - **Caravan / Daily**: your tag alone on the rope with kg delivered (big); the town post by the dial (the next town, its
   order filling up, a check when it is met) with the patience humps under it and the twist's tag; the dial with the
@@ -356,7 +368,8 @@ bone signboards.
   per unlock: the camel's head in each coat, each blanket, each hat on a camel head, a gloved hand in each sleeve; the
   worn one framed in gold, the locked ones dim with a lock and what earns them). Tap to wear (the camel snorts and shakes
   it on); Back (Esc).
-- **Toasts**: a level, an unlock, a goal done: a small board slides out from under the rope, holds, and slides back.
+- **Toasts**: a level, a new rank, an unlock, a goal done: a small board slides out from under the rope, holds, and
+  slides back.
 - **Pause** (solo runs only): the scene frozen, a board "Paused" with "Resume" and "End run".
 - **Room closed**: one board, one slab: removed → "You were removed" / Play; disconnected → "Connection lost" / Rejoin;
   replaced → "Playing in another tab" / Play here (each calls `rooms.join` again with the same options).
@@ -459,13 +472,14 @@ items with the game's physics.
 - **Action** (`thumb-2`): the collapse frozen mid-fold: X eyes, tongue out, the crack, splinters, the anvil in the air, sand
   flying.
 - **Win** (`thumb-3`): the camel lying in front of the heap of junk at nightfall, the winner on the peak with the golden
-  straw crown, straw confetti.
+  straw crown, straw confetti, your rank's card on the sand lighting a star.
 - **Multi** (`thumb-4`): six tags on the rope (players and animals, kg on each), the golden straw pointing at whose turn it
   is, that player's hands lowering a watermelon over the load.
 - **Icon** (512×512): the camel's head side-eyeing, a golden straw in its mouth, on the sun disc. No text.
 - **Badges**: a symbol on a palette-coloured disc with a brass rim: a crate, a golden straw, a straw set on a crate, the
   anvil, a tower, the crowned winner, a town gate with 6, a weight, a calendar page, the dial in the red with sweat, a
-  crate in gold rings, three vases, the cat on a crate, a town gate with 10, the level badge, the streak's lantern.
+  crate in gold rings, three vases, the cat on a crate, a town gate with 10, the level badge, the streak's lantern, the
+  Sultan's emblem.
 - The cover's camel wears the Flowers hat, the results camel a top hat and the night blanket, the multi camel a bandana:
   the Stable on the store page.
 - **Trailer** (29 s), real play captured with the autoplay, five hard cuts: a crate lowered onto a tall load in a match,
@@ -493,15 +507,15 @@ with its license, imported by relative path so node tests use the same file.
 - `game/net.js` the match over the room: `createMatch`/`createHost`/`createBots`, rpcs, the host's turns, keyframes,
   presence; `game/solo.js` local runs (Caravan, Daily, the attract mode) and the animals' auto hand; `game/main.js` boot,
   saves, input, the title and solo screens, drawing; `game/match-view.js` the room's screens.
-- `game/progress.js` levels, unlocks, daily goals and the streak (pure, tested); `game/stable.js` the day's board and the
-  wardrobe; `game/runhud.js` the Caravan's town post, patience, Set off plate and gift cards.
+- `game/progress.js` levels, trade ranks, unlocks, daily goals and the streak (pure, tested); `game/stable.js` the day's
+  board, the rank's emblem and stars, and the wardrobe; `game/runhud.js` the Caravan's town post, patience, Set off plate and gift cards.
 - `game/scene.js` one frame from a scene description (the game and the posters); `game/render.js` the station, the
   camel's layer with its shadow and rim light, the hands, the grade; `game/backdrop.js` the land and sky; `game/look.js`
   the palette, the time of day and the stops; `game/camel.js`; `game/art.js` items, hands, portraits; `game/ui.js` tags,
   dial, cart, signs, slabs; `game/fx.js`; `game/audio.js`; `game/poster.js` store art.
 - Captures only (never in production): `?autoplay=1` plays this page's turns with the animals' brain (`autoplay=caravan`
   a Caravan run, `&seed=` replays one run, `&endat=<s>` ends it then; `autoplay=lobby` / `autoplay=stable` open those
-  screens; `&xp=` and `&streak=` give the save some progress), and `&rounds=1` asks for a shorter match.
+  screens; `&xp=`, `&streak=` and `&stars=` give the save some progress), and `&rounds=1` asks for a shorter match.
 - Canvas at `ow.settings.pixelRatio(2)`, flat fills drawn every frame; physics only where it runs (host, the placer's
   prediction, solo, attract); audio suspends and solo runs pause on `visibilitychange`.
 

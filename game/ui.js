@@ -154,8 +154,8 @@ export function layout(W, H, reserved, { lobby = false, tags = 1 } = {}) {
   const boardW = Math.max(postW, Math.min(270, W * 0.24));
   const boardTop = rope.y + rope.h + 14;
   let board = { x: W - boardW - 12, y: boardTop, w: boardW, h: posts.stable.y - 16 - boardTop };
-  if (portrait || board.h < 150) board = null;
-  else board.h = Math.min(board.h, 210);
+  if (portrait || board.h < 176) board = null;
+  else board.h = Math.min(board.h, 240);
   posts.board = board;
 
   return { W, H, rope, dial, cart, stage, gy, buttons, posts, portrait, phone, compact, strip, menu, center: { x: W / 2, y: top + (gy - top) * 0.36 } };
@@ -549,8 +549,13 @@ function drawTag(ctx, g, x, y, w, h, hy, a, t, compact) {
   ctx.lineWidth = 2.5;
   ctx.strokeStyle = PAL.ink;
   ctx.stroke();
-  // the seat symbol on the portrait's edge
+  // the seat symbol on the portrait's edge, the player's trade rank on the other side
   drawSymbol(ctx, seat.sym, px + pr * 0.78, py + pr * 0.72, compact ? 5.5 : 7, seat.color, PAL.ink, 1.8);
+  if (g.emblem) {
+    try {
+      g.emblem(ctx, px - pr * 0.8, py + pr * 0.72, compact ? 6.5 : 8.5);
+    } catch {}
+  }
   if (g.host) {
     // a small key
     const kx = px - pr * 0.85, ky = py - pr * 0.8;

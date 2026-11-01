@@ -1,5 +1,6 @@
-// What a player keeps between visits (in their save): XP and levels, the Stable's unlocks (coats, blankets, hats, sleeves),
-// three goals a day and the streak of days with one done. Pure: the page calls it, node tests check it.
+// What a player keeps between visits (in their save): XP and levels, the trade rank that matches move, the Stable's unlocks
+// (coats, blankets, hats, sleeves), three goals a day and the streak of days with one done. Pure: the page calls it, node
+// tests check it.
 
 import { createRng } from './rng.js';
 
@@ -23,11 +24,53 @@ export function levelOf(xp) {
 /** XP for each thing. */
 export const XP = { load: 2, soft: 5, kg: 1, match: 20, win: 40, goal: 100 };
 
+// ---------------------------------------------------------------- the trade rank (matches)
+
+/** The ranks, each with the stars that fill it; the last has no top. */
+export const RANKS = [
+  { name: 'Peddler', stars: 4 },
+  { name: 'Trader', stars: 6 },
+  { name: 'Merchant', stars: 8 },
+  { name: 'Caravaneer', stars: 10 },
+  { name: 'Sultan', stars: Infinity },
+];
+const RANK_FLOOR = RANKS.reduce((a, r, i) => (a.push(i ? a[i - 1] + RANKS[i - 1].stars : 0), a), []);
+
+/** { rank (index), name, stars (into this rank), need (its stars), total } for a total of stars. */
+export function rankOf(total) {
+  const t = Math.max(0, Math.floor(Number(total) || 0));
+  let rank = 0;
+  while (rank < RANKS.length - 1 && t >= RANK_FLOOR[rank + 1]) rank++;
+  return { rank, name: RANKS[rank].name, stars: t - RANK_FLOOR[rank], need: RANKS[rank].stars, total: t };
+}
+
+/** Stars a match pays for a place among n seats: a win +2, second of four or more +1, last of three or more -1. */
+export function starsFor(place, n) {
+  if (!Number.isFinite(place) || place < 1) return 0;
+  if (place === 1) return 2;
+  if (place === 2 && n >= 4) return 1;
+  if (place >= n && n >= 3) return -1;
+  return 0;
+}
+
+/**
+ * A match ended at `place` of `n`: move the stars (a rank once reached is never lost, only stars inside it).
+ * Returns { before, after, delta, up (a new rank) }.
+ */
+export function rankMatch(p, place, n) {
+  const before = rankOf(p.stars);
+  const floor = RANK_FLOOR[before.rank];
+  p.stars = Math.max(floor, before.total + starsFor(place, n));
+  const after = rankOf(p.stars);
+  p.rankBest = Math.max(p.rankBest ?? 0, after.rank);
+  return { before, after, delta: after.total - before.total, up: after.rank > before.rank };
+}
+
 // ---------------------------------------------------------------- the Stable
 
 /**
  * Everything the Stable can dress the camel (and your hands) in, and how each is earned: a level, or a feat
- * (`best`: a Caravan run reaching that town; `streak`: days in a row; `badge`: a badge's feat).
+ * (`town`: a Caravan run reaching that town; `streak`: days in a row; `rank`: a trade rank reached in matches).
  */
 export const UNLOCKS = [
   { kind: 'coat', id: 'sand', name: 'Sand' },
@@ -36,12 +79,14 @@ export const UNLOCKS = [
   { kind: 'coat', id: 'ash', name: 'Ash', level: 10 },
   { kind: 'coat', id: 'rose', name: 'Rose', level: 15 },
   { kind: 'coat', id: 'gold', name: 'Gold', town: 10 },
+  { kind: 'coat', id: 'onyx', name: 'Onyx', rank: 3 },
   { kind: 'blanket', id: 0, name: 'Bazaar' },
   { kind: 'blanket', id: 1, name: 'Sea', level: 2 },
   { kind: 'blanket', id: 2, name: 'Ember', level: 5 },
   { kind: 'blanket', id: 3, name: 'Palm', level: 8 },
   { kind: 'blanket', id: 4, name: 'Night', level: 12 },
   { kind: 'blanket', id: 5, name: 'Candy', streak: 3 },
+  { kind: 'blanket', id: 6, name: 'Royal', rank: 2 },
   { kind: 'hat', id: 'none', name: 'Bare' },
   { kind: 'hat', id: 'sun', name: 'Sun hat', level: 4 },
   { kind: 'hat', id: 'flowers', name: 'Flowers', level: 7 },
@@ -49,6 +94,8 @@ export const UNLOCKS = [
   { kind: 'hat', id: 'shades', name: 'Shades', level: 13 },
   { kind: 'hat', id: 'top', name: 'Top hat', level: 18 },
   { kind: 'hat', id: 'crown', name: 'Crown', streak: 7 },
+  { kind: 'hat', id: 'fez', name: 'Fez', rank: 1 },
+  { kind: 'hat', id: 'turban', name: 'Turban', rank: 4 },
   { kind: 'sleeve', id: 0, name: 'Plain' },
   { kind: 'sleeve', id: 1, name: 'Stripes', wins: 1 },
   { kind: 'sleeve', id: 2, name: 'Checks', town: 3 },
@@ -63,6 +110,7 @@ export function unlockLabel(u) {
   if (u.town) return `Town ${u.town}`;
   if (u.streak) return `${u.streak}-day streak`;
   if (u.wins) return 'Win a match';
+  if (u.rank) return RANKS[u.rank]?.name ?? '';
   if (u.dailies) return `${u.dailies} dailies`;
   if (u.steady) return 'Steady hand';
   return '';
@@ -75,6 +123,7 @@ export function isUnlocked(p, u) {
   if (u.town) return (p.bestTown ?? 1) >= u.town;
   if (u.streak) return (p.streakBest ?? 0) >= u.streak;
   if (u.wins) return (p.wins ?? 0) >= u.wins;
+  if (u.rank) return (p.rankBest ?? 0) >= u.rank;
   if (u.dailies) return (p.dailies ?? 0) >= u.dailies;
   if (u.steady) return !!p.steady;
   return true;
@@ -94,7 +143,7 @@ export function lookOf(p) {
 
 /** Unlocks that p has now but did not have before (to show what a level-up or a feat just earned). */
 export function newUnlocks(before, after) {
-  return UNLOCKS.filter((u) => (u.level || u.town || u.streak || u.wins || u.dailies || u.steady) && isUnlocked(after, u) && !isUnlocked(before, u));
+  return UNLOCKS.filter((u) => (u.level || u.town || u.streak || u.wins || u.rank || u.dailies || u.steady) && isUnlocked(after, u) && !isUnlocked(before, u));
 }
 
 // ---------------------------------------------------------------- goals
@@ -194,6 +243,8 @@ export function addXp(p, n) {
 export function cleanProgress(p) {
   p.xp = Number.isFinite(p.xp) && p.xp >= 0 ? Math.floor(p.xp) : 0;
   p.streakBest = Number.isFinite(p.streakBest) && p.streakBest >= 0 ? Math.floor(p.streakBest) : 0;
+  p.stars = Number.isFinite(p.stars) && p.stars >= 0 ? Math.min(9999, Math.floor(p.stars)) : 0;
+  p.rankBest = Math.max(rankOf(p.stars).rank, Number.isInteger(p.rankBest) ? Math.min(RANKS.length - 1, Math.max(0, p.rankBest)) : 0);
   if (!p.streak || typeof p.streak !== 'object' || !Number.isInteger(p.streak.day) || !Number.isInteger(p.streak.n)) p.streak = { day: -9, n: 0 };
   if (p.goals && (typeof p.goals !== 'object' || !Array.isArray(p.goals.list) || !p.goals.list.every((g) => g && GOALS[g.id] && Number.isFinite(g.n) && Number.isFinite(g.have)))) p.goals = null;
   if (!p.look || typeof p.look !== 'object') p.look = {};

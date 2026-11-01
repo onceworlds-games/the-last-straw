@@ -316,8 +316,9 @@ export function createNet(room, lib, hooks = {}) {
 
   // ------------------------------------------------------------ presence: where the placer's hands are
 
-  function setHover(k, h, sleeve = 0) {
+  function setHover(k, h, sleeve = 0, rank = null) {
     const p = h ? { k, x: Math.round(h.x * 1000), y: Math.round(h.y * 1000), a: Math.round(h.a * 1000), sl: sleeve } : { sl: sleeve };
+    if (Number.isInteger(rank)) p.rk = rank;
     const key = JSON.stringify(p);
     if (key === lastPresence) return;
     lastPresence = key;
@@ -338,6 +339,15 @@ export function createNet(room, lib, hooks = {}) {
   function sleeveOf(id) {
     const s = room.players.get(id)?.presence?.sl;
     return Number.isInteger(s) && s >= 0 && s < 8 ? s : 0;
+  }
+
+  /** The trade rank another player shows (null when they haven't said). */
+  function rankOf(id) {
+    let r = null;
+    try {
+      r = room.players.get(id)?.presence?.rk;
+    } catch {}
+    return Number.isInteger(r) && r >= 0 && r < 5 ? r : null;
   }
 
   const offs = [
@@ -380,6 +390,7 @@ export function createNet(room, lib, hooks = {}) {
     setHover,
     hoverOf,
     sleeveOf,
+    rankOf,
     keyframes,
     syncFill,
     dispose() {

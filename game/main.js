@@ -6,8 +6,8 @@ import { turnKey, placer, heldItem, nextPlayer, moodOf, dayNumber, dailySeed, da
 import { RUN, payout, townOrder, runBand, runPhysics, perkCount } from './caravan.js';
 import { biomeFor, BIOMES } from './look.js';
 import { drawTownPost, drawTwistTag, drawPatience, drawSetOff, perkRects, drawPerkCards } from './runhud.js';
-import { XP, levelOf, addXp, track, goalsToday, goalLabel, streakBonus, newUnlocks, unlocksOf, lookOf, cleanProgress, isUnlocked, unlockLabel } from './progress.js';
-import { drawDayBoard, drawWardrobe, levelBadge, xpBar } from './stable.js';
+import { XP, levelOf, addXp, track, goalsToday, goalLabel, streakBonus, newUnlocks, unlocksOf, lookOf, cleanProgress, isUnlocked, unlockLabel, rankMatch } from './progress.js';
+import { drawDayBoard, drawWardrobe, levelBadge, xpBar, rankEmblem } from './stable.js';
 import { createNet, JOIN, nextSettingValue } from './net.js';
 import { createSolo } from './solo.js';
 import { createMatchView } from './match-view.js';
@@ -51,7 +51,7 @@ async function loadLib() {
   }
 }
 
-const DEFAULT_PROFILE = { v: 1, wins: 0, matches: 0, best: 0, bestTown: 1, lifetime: 0, dailies: 0, steady: false, hints: {}, sleeve: 0, xp: 0, streakBest: 0, streak: null, goals: null, look: null, softs: 0 };
+const DEFAULT_PROFILE = { v: 1, wins: 0, matches: 0, best: 0, bestTown: 1, lifetime: 0, dailies: 0, steady: false, hints: {}, sleeve: 0, xp: 0, streakBest: 0, streak: null, goals: null, look: null, softs: 0, stars: 0, rankBest: 0 };
 
 async function boot() {
   const roomPromise = joinRoom(); // join first, before anything heavy
@@ -151,7 +151,7 @@ async function boot() {
 
   // ---------------------------------------------------------------- progress: XP, today's goals, the streak, unlocks
 
-  const unlockState = (p) => ({ xp: p.xp, bestTown: p.bestTown, streakBest: p.streakBest, wins: p.wins, dailies: p.dailies, steady: p.steady });
+  const unlockState = (p) => ({ xp: p.xp, bestTown: p.bestTown, streakBest: p.streakBest, wins: p.wins, dailies: p.dailies, steady: p.steady, rankBest: p.rankBest });
   function afterGain(before) {
     const p = S.profile;
     const lb = levelOf(before.xp).level, la = levelOf(p.xp).level;
@@ -201,7 +201,17 @@ async function boot() {
     if (!smash && key === 'vase') progress('vase');
     if (item === STRAW) progress('straw');
   }
-  function matchPlayed(win) {
+  /** A match ended for me at `place` of `n` seats (no place: I was watching). */
+  function matchPlayed(win, place, n) {
+    if (Number.isFinite(place) && place >= 1 && n >= 2) {
+      const before = unlockState(S.profile);
+      const r = rankMatch(S.profile, place, n);
+      // the results' card plays it out (and says a new rank when the emblem turns over)
+      S.rankRes = { ...r, at: S.t };
+      if (r.after.rank >= 4) award('sultan');
+      safe(() => ow?.leaderboards?.submit('trade-rank', S.profile.stars)?.catch?.(() => {}));
+      afterGain(before);
+    }
     gainXp(XP.match + (win ? XP.win : 0));
     progress('match');
   }
@@ -238,10 +248,11 @@ async function boot() {
     ctx.lineWidth = 3;
     ctx.strokeStyle = PAL.ink;
     ctx.stroke(tp);
-    ctx.fillStyle = t.kind === 'goal' ? PAL.turq : t.kind === 'level' ? PAL.gold : PAL.rose;
+    ctx.fillStyle = t.kind === 'goal' ? PAL.turq : t.kind === 'level' || t.kind === 'rank' ? PAL.gold : PAL.rose;
     ctx.fillRect(x + 3, y + 3, w - 6, 5);
     const ix = x + 34, iy = y + h / 2 + 2;
     if (t.kind === 'level') levelBadge(ctx, ix, iy, 18, t.level, S.t);
+    else if (t.kind === 'rank') rankEmblem(ctx, ix, iy, 19, t.rank, S.t);
     else {
       ctx.beginPath();
       ctx.arc(ix, iy, 16, 0, Math.PI * 2);
@@ -1107,6 +1118,11 @@ async function boot() {
         g.list[0].done = true;
         g.list[0].have = g.list[0].n;
       }
+      const stars = Number(params.get('stars'));
+      if (stars > 0) {
+        S.profile.stars = Math.floor(stars);
+        cleanProgress(S.profile);
+      }
       if (autoplay === 'stable') {
         pressPlay();
         openStable();
@@ -1578,7 +1594,7 @@ async function boot() {
       ctx.translate((1 - k) * (L.portrait ? 0 : 80), (1 - k) * (L.portrait ? 80 : 0));
       ctx.globalAlpha = k;
       const P = sp.panel;
-      const dayH = L.portrait ? clamp(P.h * 0.27, 128, 160) : clamp(P.h * 0.36, 150, 210);
+      const dayH = L.portrait ? clamp(P.h * 0.3, 176, 196) : clamp(P.h * 0.4, 180, 240);
       drawDayBoard(ctx, { x: P.x, y: P.y, w: P.w, h: dayH }, { profile: p, day: today(), t: S.t, popId: S.goalPop?.i, popAge: S.goalPop ? S.t - S.goalPop.at : null });
       const W0 = { x: P.x, y: P.y + dayH + 6, w: P.w, h: P.h - dayH - 6 };
       const list = drawWardrobe(ctx, W0, { profile: p, look: lookOf(p), sleeve: mySleeve(), t: S.t, fresh: S.fresh });
@@ -1686,6 +1702,7 @@ async function boot() {
     smashJuice,
     myLoadHeld,
     matchPlayed,
+    toast,
     placeHints,
     baseScene,
     today,

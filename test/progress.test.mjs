@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   xpFor, levelOf, MAX_LEVEL, XP, UNLOCKS, isUnlocked, unlocksOf, lookOf, newUnlocks, goalsFor, goalsToday, track, streakNow,
-  streakBonus, addXp, cleanProgress, GOALS, goalLabel,
+  streakBonus, addXp, cleanProgress, GOALS, goalLabel, RANKS, rankOf, starsFor, rankMatch,
 } from '../game/progress.js';
 
 const fresh = () => cleanProgress({ wins: 0, bestTown: 1, dailies: 0, steady: false, xp: 0 });
@@ -92,4 +92,41 @@ test('a broken or old save is cleaned, never trusted', () => {
   assert.equal(addXp(p, 12.6), 13);
   assert.equal(p.xp, 13);
   assert.ok(isUnlocked(p, UNLOCKS[0]));
+});
+
+test('trade ranks: a win pays two stars, second of four one, last of three or more loses one; a rank is never lost', () => {
+  assert.equal(starsFor(1, 2), 2);
+  assert.equal(starsFor(2, 2), 0, 'losing a duel costs nothing');
+  assert.equal(starsFor(2, 4), 1);
+  assert.equal(starsFor(2, 3), 0);
+  assert.equal(starsFor(3, 3), -1);
+  assert.equal(starsFor(4, 6), 0);
+  assert.equal(starsFor(6, 6), -1);
+  assert.equal(starsFor(undefined, 4), 0, 'no place (watching): nothing');
+  assert.deepEqual(rankOf(0), { rank: 0, name: 'Peddler', stars: 0, need: 4, total: 0 });
+  assert.equal(rankOf(4).name, 'Trader');
+  assert.equal(rankOf(4).stars, 0);
+  // the top takes a while: a player who wins half their matches needs a couple of dozen
+  assert.ok(RANKS.slice(0, -1).reduce((a, r) => a + r.stars, 0) >= 24);
+  const sultanAt = RANKS.slice(0, -1).reduce((a, r) => a + r.stars, 0);
+  assert.equal(rankOf(sultanAt - 1).name, 'Caravaneer');
+  assert.equal(rankOf(sultanAt + 40).name, 'Sultan');
+  assert.equal(rankOf(sultanAt + 40).stars, 40);
+  const p = cleanProgress({ xp: 0 });
+  assert.equal(p.stars, 0);
+  assert.equal(rankMatch(p, 4, 4).delta, 0, 'no stars to lose yet');
+  rankMatch(p, 1, 4);
+  assert.equal(rankMatch(p, 2, 4).delta, 1);
+  const up = rankMatch(p, 2, 4);
+  assert.ok(up.up && up.after.name === 'Trader' && p.rankBest === 1);
+  const down = rankMatch(p, 4, 4);
+  assert.equal(down.delta, 0, 'a fresh Trader keeps the rank');
+  rankMatch(p, 1, 4);
+  assert.equal(rankMatch(p, 4, 4).delta, -1, 'stars inside a rank can go');
+  // the Stable's rank prizes come with the rank
+  const before = { ...p, rankBest: 0 };
+  assert.ok(newUnlocks(before, p).some((u) => u.id === 'fez'));
+  assert.ok(!isUnlocked(p, UNLOCKS.find((u) => u.id === 'turban')));
+  assert.equal(cleanProgress({ stars: -3 }).stars, 0);
+  assert.equal(cleanProgress({ stars: 'x', rankBest: 99 }).rankBest, RANKS.length - 1);
 });
