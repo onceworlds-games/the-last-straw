@@ -397,8 +397,9 @@ items with the game's physics.
 - **Icon** (512×512): the camel's head side-eyeing, a golden straw in its mouth, on the sun disc. No text.
 - **Badges**: a symbol on a palette-coloured disc with a brass rim: a crate, a golden straw, a straw set on a crate, the
   anvil, a tower, the crowned winner, a town gate with 6, a weight, a calendar page.
-- **Trailer** (about 30 s), from real play captured with the autoplay: the goal first (a tall load and the needle in the
-  red), picks and placements by the animals, the break, the results heap, and the name to close.
+- **Trailer** (23 s), from real play captured with the autoplay: the goal in the first frame (a tall load, the needle, the
+  pick between a teapot and an anvil, the anvil going up), the animals loading, the load slumping with the needle in the
+  red, the last straw and its sign, the win on the heap, and the title screen to close.
 
 ## Originality check
 
