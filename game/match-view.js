@@ -216,7 +216,8 @@ export function createMatchView(app) {
     sc.camel.knocked = !!view.knocked;
     sc.camel.mood = view.mood ?? d.mood;
     const top = d.top / 1000;
-    sc.box.y1 = Math.max(3.1, top + (d.step === 'place' || d.step === 'pick' ? 2.4 : 0.6));
+    // the hover zone stays in the picture all round, so the camera only eases out as the load grows (never pumps each turn)
+    sc.box.y1 = Math.max(3.1, top + 2.4);
 
     // hands
     if (d.step === 'place' && !(S.pred && S.pred.k === k)) {

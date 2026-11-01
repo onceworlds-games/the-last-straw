@@ -897,7 +897,7 @@ async function boot() {
     sc.sun = demo ? 0.15 : clamp((c.leg - 1) / 7, 0, 0.75);
     sc.night = demo ? 0 : clamp((c.leg - 4) / 4, 0, 0.8);
     const top = c.top;
-    sc.box.y1 = Math.max(3.1, top + (c.step === 'place' ? 2.4 : 0.6));
+    sc.box.y1 = Math.max(3.1, top + 2.4);
     if (demo && S.camel.stand > 0) {
       S.camel.stand = Math.max(0, S.camel.stand - wdt / 1.6);
       sc.camel.fold = Math.max(sc.camel.fold, S.camel.stand);
