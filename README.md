@@ -4,4 +4,13 @@ Take turns loading the camel. Don't be the one who breaks its back.
 
 Play: https://onceworlds.com/play/the-last-straw
 
+Pick one of two items from the cart (the other goes to the next player), set it on the load, and score its kg if the camel
+holds. Break its back, or drop something off, and you score nothing that round. Alone: Caravan runs from town to town, and
+the Daily cart.
+
+Plain ES modules and Canvas 2D in `game/`, no build. Physics by [planck.js](https://piqnt.com/planck.js/) (MIT, vendored in
+`game/vendor`). How it plays and why: `DESIGN.md`.
+
+Tests (Node 22 or newer, nothing to install): `npm test`.
+
 MIT licensed.

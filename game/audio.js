@@ -215,9 +215,6 @@ export function clatter() {
   }
   tone({ f: 60, f2: 40, type: 'sine', d: 0.6, v: 0.9, at: 0.2 });
 }
-export function pluck(i = 0) {
-  tone({ f: 587 * 2 ** ((i % 5) / 12), type: 'triangle', d: 0.12, v: 0.12 });
-}
 export function thud() {
   tone({ f: 90, f2: 55, type: 'sine', d: 0.25, v: 0.6 });
 }
