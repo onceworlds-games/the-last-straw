@@ -401,33 +401,52 @@ export function perkIcon(ctx, key, cx, cy, s, t = 0) {
     ctx.ellipse(-6, 8, 7, 4, -0.4, 0, Math.PI * 2);
     ctx.fill();
   } else if (key === 'water') {
+    // a leather water skin: a plump, stitched bag with a corded neck and a drop at the spout
     const skin = new Path2D();
-    skin.moveTo(-8, -34);
-    skin.lineTo(8, -34);
-    skin.lineTo(10, -20);
-    skin.bezierCurveTo(40, -14, 40, 36, 0, 38);
-    skin.bezierCurveTo(-40, 36, -40, -14, -10, -20);
+    skin.moveTo(-7, -26);
+    skin.lineTo(7, -26);
+    skin.bezierCurveTo(9, -18, 18, -16, 26, -8);
+    skin.bezierCurveTo(40, 8, 34, 36, 4, 38);
+    skin.bezierCurveTo(-26, 40, -40, 22, -32, 2);
+    skin.bezierCurveTo(-28, -10, -10, -16, -7, -26);
     skin.closePath();
-    fillStroke(skin, '#A35A2E');
+    const g = ctx.createLinearGradient(-30, -20, 30, 40);
+    g.addColorStop(0, '#C77A43');
+    g.addColorStop(1, '#8A4524');
+    ctx.fillStyle = g;
+    ctx.fill(skin);
+    ctx.stroke(skin);
+    // the seam
     ctx.save();
-    ctx.clip(skin);
-    const wob = Math.sin(t * 3) * 3;
+    ctx.setLineDash([4, 4]);
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = '#F2D2A0';
+    ctx.beginPath();
+    ctx.moveTo(-24, 6);
+    ctx.bezierCurveTo(-20, 30, 20, 32, 28, 6);
+    ctx.stroke();
+    ctx.restore();
+    ctx.fillStyle = 'rgba(255,240,217,0.35)';
+    ctx.beginPath();
+    ctx.ellipse(-14, 4, 6, 11, 0.4, 0, Math.PI * 2);
+    ctx.fill();
+    // the corded neck and the stopper
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = PAL.ink;
+    const cord = rr(new Path2D(), -10, -24, 20, 6, 3);
+    fillStroke(cord, PAL.gold);
+    const cap = rr(new Path2D(), -6, -34, 12, 10, 3);
+    fillStroke(cap, PAL.woodDark);
+    // a drop
+    const dy = ((t * 0.8) % 1) * 10;
     ctx.fillStyle = PAL.turq;
     ctx.beginPath();
-    ctx.moveTo(-40, 6 + wob);
-    ctx.quadraticCurveTo(0, 0 - wob, 40, 6 + wob);
-    ctx.lineTo(40, 40);
-    ctx.lineTo(-40, 40);
-    ctx.closePath();
+    ctx.moveTo(14, -34 + dy);
+    ctx.bezierCurveTo(19, -27 + dy, 19, -22 + dy, 14, -22 + dy);
+    ctx.bezierCurveTo(9, -22 + dy, 9, -27 + dy, 14, -34 + dy);
     ctx.fill();
-    ctx.restore();
-    ctx.stroke(skin);
-    const cap = rr(new Path2D(), -10, -42, 20, 10, 3);
-    fillStroke(cap, PAL.woodDark);
-    ctx.fillStyle = 'rgba(255,255,255,0.5)';
-    ctx.beginPath();
-    ctx.ellipse(-14, -2, 5, 10, 0.3, 0, Math.PI * 2);
-    ctx.fill();
+    ctx.lineWidth = 2;
+    ctx.stroke();
   }
   ctx.restore();
 }
