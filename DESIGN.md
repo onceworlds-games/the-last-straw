@@ -439,16 +439,20 @@ shake, no freeze or slow motion, fewer particles.
 
 ## Sound
 
-All synthesized in Web Audio, started on the first tap or key.
-- Pick: a wooden tok; a new pair arrives with the cart's scrape.
+Recorded CC0 takes (Kenney's impact, RPG and interface packs, one sprite in `game/sfx/sprite.mp3`, a random take each
+time, pitched by weight) layered with Web Audio synthesis, started on the first tap or key; until the sprite loads (or if
+it can't) the synthesized sounds play alone.
+- Pick: a leather grip; a new pair arrives with the cart's scrape and latch.
 - Aim: a soft rope creak while moving fast; a ratchet click per 15° turn; the ghost blips when it moves onto a new surface
   (the load, the camel, the sand).
-- Drop: hands open with a whup; heavy items whistle a little as they fall.
-- Landing (volume by kg × speed): wood (low knock), metal (inharmonic ring), cloth (low thump), ceramic (clink), rubber
-  (squeak), brass (a honk for the tuba), straw (a tiny tick), and the rest.
+- Drop: hands open with a rustle of sleeves; heavy items whistle a little as they fall.
+- Landing (volume by kg × speed, deeper the heavier): recorded wood, plank, metal, pot, plate, tin, glass, book, leather and
+  soft impacts by material, with synthesized rings (anvil, bathtub, clock), the bike's bell, the duck's squeak and the
+  tuba's honk on top; straw is a tiny tick.
 - Soft landing: a chime that climbs with the streak. Smash: porcelain bursting. The cat: a meow. Hay, paper, leather,
   cloth and fur each have their own landing.
-- Caravan: a bell as the camel sets off, brass at the gate, a coin shower at the receipt, a fanfare at a town.
+- Caravan: a bell and the straps pulled tight as the camel sets off, padded footfalls on the sand with every pace, a gong
+  on arrival, brass at the gate, a coin shower at the receipt, a fanfare at a town.
 - The camel: a throaty grumble after each placement that rises with its mood; spine creaks that come faster and louder with strain;
   a snort when something falls.
 - The needle: a spring boing when it swings far.

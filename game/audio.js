@@ -1,5 +1,7 @@
-// Every sound, synthesized: wood, metal, cloth and ceramic landings, the camel's grumbles and creaks, the crack, and a small
-// percussion-first sequencer in D dorian that speeds up from 96 to 124 BPM as the camel nears its limit.
+// Recorded landings, footfalls, creaks and coins (Kenney's CC0 impact, RPG and interface packs, cut into one sprite,
+// sfx/sprite.mp3) layered with synthesized rings, bells, squeaks and the camel's voice; the synthesized sounds stand in
+// for everything until the sprite has loaded (or if it can't). The music is a small percussion-first sequencer in
+// D dorian that speeds up from 96 to 124 BPM as the camel nears its limit.
 
 let ac = null;
 let master = null;
@@ -9,6 +11,99 @@ let noiseBuf = null;
 let failed = false;
 
 const music = { on: false, mode: 'menu', tension: 0, step: 0, next: 0, timer: 0 };
+
+// The sprite's takes: name -> [[start s, length s], ...] (several takes of a sound play in turn, never the same twice running).
+const SPRITE = {
+  wood: [[0.1, 0.3298], [0.5798, 0.3298], [1.0595, 0.3298]],
+  woodH: [[1.5393, 0.3101], [1.9995, 0.3101], [2.4596, 0.3101]],
+  plank: [[2.9197, 0.4501]],
+  iron: [[3.5199, 0.1648], [3.8346, 0.3564], [4.341, 0.1144]],
+  metal: [[4.6054, 0.2689], [5.0243, 0.1405], [5.3148, 0.3611], [5.8259, 0.2489]],
+  pot: [[6.2249, 1], [7.3749, 0.8509], [8.3757, 0.8441]],
+  plate: [[9.3698, 0.4887], [10.0085, 0.3494]],
+  plateL: [[10.5079, 0.5054], [11.1633, 0.6], [11.9133, 0.5817]],
+  tin: [[12.645, 0.1558], [12.9508, 0.1714]],
+  glassL: [[13.2722, 0.2183], [13.6406, 0.2067]],
+  glassH: [[13.9973, 0.2383], [14.3856, 0.429], [14.9646, 0.2443]],
+  soft: [[15.3589, 0.5268], [16.0357, 0.5691], [16.7548, 0.5694]],
+  softM: [[17.4742, 0.1151], [17.7393, 0.1804]],
+  punch: [[18.0697, 0.5716], [18.7913, 0.4813], [19.4226, 0.3051]],
+  generic: [[19.8777, 0.1611], [20.1888, 0.1146]],
+  gong: [[20.4534, 1.4]],
+  sand: [[22.0034, 0.2081], [22.3615, 0.32], [22.8315, 0.32], [23.3015, 0.32]],
+  hay: [[23.7715, 0.45], [24.3715, 0.45]],
+  book: [[24.9715, 0.2767], [25.3982, 0.3045], [25.8527, 0.2613]],
+  leather: [[26.264, 0.3261]],
+  grab: [[26.7401, 0.2113], [27.1014, 0.2125]],
+  belt: [[27.4639, 0.2561], [27.87, 0.4274]],
+  cloth: [[28.4474, 0.5], [29.0974, 0.3679], [29.6153, 0.4651], [30.2303, 0.3844]],
+  creak: [[30.7647, 0.6032], [31.5178, 0.75], [32.4178, 0.2946]],
+  coins: [[32.8625, 0.7304], [33.7429, 0.3182]],
+  latch: [[34.2111, 0.2605]],
+  chop: [[34.6216, 0.2403]],
+  click: [[35.0119, 0.0971], [35.259, 0.0116]],
+  select: [[35.4206, 0.0404], [35.611, 0.0404]],
+  tick: [[35.8014, 0.0315], [35.9829, 0.0203]],
+  pluck: [[36.1532, 0.0995]],
+  drop: [[36.4027, 0.1321]],
+};
+let spriteBytes = null;
+let spriteBuf = null;
+let decoding = false;
+const lastTake = {};
+const vary = (k = 0.06) => 1 + (Math.random() * 2 - 1) * k;
+
+try {
+  fetch(new URL('./sfx/sprite.mp3', import.meta.url))
+    .then((r) => (r.ok ? r.arrayBuffer() : null))
+    .then((b) => {
+      spriteBytes = b;
+      decodeSprite();
+    })
+    .catch(() => {});
+} catch {}
+
+function decodeSprite() {
+  if (!ac || !spriteBytes || spriteBuf || decoding) return;
+  decoding = true;
+  const done = (b) => {
+    if (b) spriteBuf = b;
+  };
+  try {
+    const p = ac.decodeAudioData(spriteBytes, done, () => {});
+    p?.then?.(done)?.catch?.(() => {});
+  } catch {}
+}
+
+/** One take of a recorded sound: v loudness, rate pitch and speed, at a delay (s), lp a low-pass. True when it played. */
+function sample(name, { v = 0.5, rate = 1, at = 0, lp = null, bus = sfxBus } = {}) {
+  const takes = SPRITE[name];
+  if (!ac || !spriteBuf || !takes || v <= 0) return false;
+  try {
+    let i = Math.floor(Math.random() * takes.length);
+    if (takes.length > 1 && i === lastTake[name]) i = (i + 1) % takes.length;
+    lastTake[name] = i;
+    const [start, len] = takes[i];
+    const src = ac.createBufferSource();
+    src.buffer = spriteBuf;
+    src.playbackRate.value = rate;
+    const g = ac.createGain();
+    g.gain.value = Math.min(1.2, v);
+    let node = src;
+    if (lp) {
+      const f = ac.createBiquadFilter();
+      f.type = 'lowpass';
+      f.frequency.value = lp;
+      node.connect(f);
+      node = f;
+    }
+    node.connect(g).connect(bus);
+    src.start(ac.currentTime + at, start, len + 0.03);
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 /** Start (or resume) sound: call from a tap, click or key in the game. */
 export function init() {
@@ -42,6 +137,7 @@ export function init() {
       }
     }
     if (ac.state === 'suspended') ac.resume().catch(() => {});
+    decodeSprite();
   } catch {
     failed = true;
   }
@@ -130,33 +226,102 @@ function noise({ at = 0, a = 0.003, d = 0.15, v = 0.3, type = 'bandpass', f = 12
 // ---------------------------------------------------------------- the game's sounds
 
 export function tok() {
+  if (sample('click', { v: 0.42, rate: vary(0.05) })) return;
   tone({ f: 520, f2: 300, type: 'triangle', d: 0.07, v: 0.35 });
   noise({ f: 2500, d: 0.03, v: 0.15 });
 }
+/** A hand taking an item off the cart: a leather grip and a knock. */
+export function grab() {
+  if (sample('grab', { v: 0.5, rate: vary() })) {
+    sample('click', { v: 0.18, rate: 0.8 });
+    return;
+  }
+  tok();
+}
 export function scrape() {
+  sample('latch', { v: 0.18, rate: 0.75 * vary() });
   noise({ f: 900, f2: 2400, q: 2, a: 0.04, d: 0.28, v: 0.12 });
 }
 export function ratchet() {
+  if (sample('click', { v: 0.22, rate: 1.5 * vary(0.04) })) return;
   noise({ f: 3200, q: 4, d: 0.025, v: 0.18 });
   tone({ f: 1800, type: 'square', d: 0.02, v: 0.04 });
 }
 export function blip() {
+  if (sample('pluck', { v: 0.2, rate: 1.5 })) return;
   tone({ f: 980, f2: 1300, type: 'sine', d: 0.06, v: 0.08 });
 }
+let creakAt = -9;
+/** The saddle's ropes and the camel's knees: a wooden creak, low and slow. */
 export function creak(v = 0.08) {
+  // one at a time: under strain this is asked for often
+  if (ac && ac.currentTime - creakAt > 0.45 && sample('creak', { v: Math.min(0.7, v * 3.2), rate: 0.78 * vary(0.1), lp: 2600 })) {
+    creakAt = ac.currentTime;
+    return;
+  }
+  if (ac && ac.currentTime - creakAt < 0.45) return;
   tone({ f: 120, f2: 90, type: 'sawtooth', a: 0.05, d: 0.25, v, lp: 600, q: 8 });
 }
+/** The hands letting go: a rustle of sleeves. */
 export function whup() {
-  noise({ f: 400, f2: 1400, q: 1.5, a: 0.02, d: 0.16, v: 0.25 });
+  sample('cloth', { v: 0.32, rate: vary(0.08) });
+  noise({ f: 400, f2: 1400, q: 1.5, a: 0.02, d: 0.16, v: 0.16 });
+}
+/** A camel's padded feet coming down on sand (the road music carries the bells). */
+export function step(i = 0, v = 1) {
+  sample('sand', { v: (i % 2 ? 0.17 : 0.21) * v, rate: 0.6 * vary(0.05), lp: 1500 });
+}
+/** The straps pulled tight: setting off. */
+export function strap() {
+  sample('belt', { v: 0.55, rate: vary() });
+}
+/** A town's gong (arriving). */
+export function gong() {
+  sample('gong', { v: 0.3, rate: 0.85 });
 }
 export function whistle(kg) {
   if (kg < 10) return;
   tone({ f: 1400, f2: 600, type: 'sine', a: 0.1, d: 0.5, v: 0.05 });
 }
 
-/** A landing, by material, loud by energy (kg × speed). */
-export function land(mat, energy = 1) {
+// What each material's landing is recorded as: [take, loudness, pitch] layers (pitch also drops with the weight).
+const LAND = {
+  wood: [['wood', 1.1]],
+  plank: [['plank', 1.0], ['wood', 0.5, 1.2]],
+  iron: [['iron', 1.0, 0.9], ['punch', 0.7, 0.75]],
+  copper: [['pot', 0.85]],
+  enamel: [['plate', 1.0, 0.85], ['punch', 0.55, 0.8]],
+  ceramic: [['plateL', 0.75, 1.2]],
+  rubber: [['softM', 0.6, 1.3]],
+  brass: [['metal', 0.7, 0.7], ['softM', 0.5]],
+  tin: [['tin', 0.75]],
+  clock: [['woodH', 1.0, 0.8], ['metal', 0.25, 1.4]],
+  bike: [['metal', 0.75], ['tin', 0.35, 1.2]],
+  melon: [['punch', 0.75, 1.15], ['softM', 0.55]],
+  porcelain: [['glassL', 0.7]],
+  hay: [['hay', 0.75, 0.85], ['softM', 0.6, 0.8]],
+  fur: [['softM', 0.45, 1.25]],
+  paper: [['book', 1.0]],
+  leather: [['leather', 1.0]],
+  cloth: [['soft', 1.0]],
+  clay: [['plateL', 0.7, 0.8], ['generic', 0.5, 0.9]],
+};
+// How much of the synthesized landing stays on top of the recording: the rings, bells, squeaks and the cat's chirp.
+const KEEP = { iron: 0.55, enamel: 0.5, copper: 0.25, clock: 0.7, bike: 0.8, rubber: 0.7, fur: 1, brass: 0.6, straw: 1, porcelain: 0.35 };
+
+/** A landing, by material (and item), loud by energy (kg × speed), deeper the heavier. */
+export function land(mat, energy = 1, kg = 4, key = null) {
   const v = Math.max(0.08, Math.min(0.9, 0.12 + energy * 0.05));
+  const m = key === 'ladder' ? 'plank' : mat === 'wood' && (kg >= 8 || energy > 9) ? 'woodH' : mat;
+  const layers = m === 'woodH' ? [['woodH', 1.1]] : LAND[m];
+  const r = vary() * (1.12 - Math.min(1, kg / 18) * 0.3);
+  let took = false;
+  if (layers) for (const [name, k, rr = 1] of layers) took = sample(name, { v: Math.min(1, v * 1.25 * k), rate: r * rr }) || took;
+  const keep = took ? KEEP[mat] ?? 0 : 1;
+  if (keep > 0) synthLand(mat, v * keep);
+}
+
+function synthLand(mat, v) {
   switch (mat) {
     case 'wood':
       tone({ f: 180, f2: 110, type: 'triangle', d: 0.18, v });
@@ -265,20 +430,28 @@ export function soft(n = 1) {
 
 /** A vase bursting: a bright crash, a spray of tiny tinks, a low knock. */
 export function smash() {
-  noise({ f: 4200, type: 'highpass', a: 0.001, d: 0.22, v: 0.55 });
-  noise({ f: 1800, q: 1.2, a: 0.001, d: 0.12, v: 0.35 });
-  for (let i = 0; i < 12; i++) tone({ f: 2200 + Math.random() * 3800, type: 'sine', at: 0.02 + i * 0.03 + Math.random() * 0.03, d: 0.1 + Math.random() * 0.1, v: 0.06 });
+  const rec = sample('glassH', { v: 0.95, rate: vary() });
+  if (rec) sample('glassH', { v: 0.5, rate: 1.35 * vary(), at: 0.05 });
+  else {
+    noise({ f: 4200, type: 'highpass', a: 0.001, d: 0.22, v: 0.55 });
+    noise({ f: 1800, q: 1.2, a: 0.001, d: 0.12, v: 0.35 });
+  }
+  for (let i = 0; i < (rec ? 6 : 12); i++) tone({ f: 2200 + Math.random() * 3800, type: 'sine', at: 0.06 + i * 0.04 + Math.random() * 0.03, d: 0.1 + Math.random() * 0.1, v: 0.05 });
   tone({ f: 140, f2: 70, type: 'sine', d: 0.18, v: 0.35 });
 }
 
 /** A camel bell (on the road). */
-export function bell(i = 0) {
+export function bell(i = 0, v = 1) {
   const f = i % 2 ? 1046 : 1174;
-  for (const [m, k] of [[1, 1], [2.76, 0.45], [5.4, 0.2]]) tone({ f: f * m, type: 'sine', d: 0.8, v: 0.05 * k });
+  for (const [m, k] of [[1, 1], [2.76, 0.45], [5.4, 0.2]]) tone({ f: f * m, type: 'sine', d: 0.8, v: 0.05 * k * v });
 }
 
 /** Coins counted into a hand (a town paying). */
 export function coins(n = 6) {
+  if (sample('coins', { v: 0.6, rate: vary(0.04) })) {
+    if (n > 8) sample('coins', { v: 0.4, rate: 1.1 * vary(0.04), at: 0.22 });
+    n = Math.ceil(n / 3);
+  }
   for (let i = 0; i < n; i++) {
     const at = i * 0.055 + Math.random() * 0.02;
     tone({ f: 2600 + Math.random() * 900, type: 'sine', at, d: 0.12, v: 0.06 });
@@ -292,24 +465,38 @@ export function boing() {
   tone({ f: 300, f2: 520, type: 'sine', d: 0.25, v: 0.12 });
 }
 export function crack() {
-  noise({ f: 3000, type: 'highpass', a: 0.001, d: 0.12, v: 0.7 });
-  noise({ f: 1200, q: 2, a: 0.001, d: 0.3, v: 0.5, at: 0.03 });
+  if (sample('chop', { v: 1, rate: 0.72 })) {
+    sample('woodH', { v: 0.9, rate: 0.55, at: 0.02 });
+    sample('creak', { v: 0.5, rate: 0.6, at: 0.08 });
+  } else {
+    noise({ f: 3000, type: 'highpass', a: 0.001, d: 0.12, v: 0.7 });
+    noise({ f: 1200, q: 2, a: 0.001, d: 0.3, v: 0.5, at: 0.03 });
+  }
   tone({ f: 70, f2: 35, type: 'sine', d: 0.5, v: 0.8, at: 0.02 });
 }
 export function whoosh() {
   noise({ f: 300, f2: 1800, q: 1.2, a: 0.3, d: 0.6, v: 0.25 });
 }
+const CLATTER = ['woodH', 'soft', 'metal', 'wood', 'plateL', 'punch', 'book', 'tin', 'leather'];
+/** The whole load coming down: a tumble of everything on it. */
 export function clatter() {
   for (let i = 0; i < 9; i++) {
-    tone({ f: 160 + Math.random() * 200, f2: 90, type: 'triangle', at: i * 0.07 + Math.random() * 0.04, d: 0.12, v: 0.35 });
+    const at = i * 0.07 + Math.random() * 0.04;
+    if (sample(CLATTER[i], { v: 0.75 - i * 0.04, rate: vary(0.1), at })) continue;
+    tone({ f: 160 + Math.random() * 200, f2: 90, type: 'triangle', at, d: 0.12, v: 0.35 });
     noise({ f: 800 + Math.random() * 600, at: i * 0.07, d: 0.05, v: 0.2 });
   }
   tone({ f: 60, f2: 40, type: 'sine', d: 0.6, v: 0.9, at: 0.2 });
 }
 export function thud() {
+  if (sample('punch', { v: 0.6, rate: 0.75 * vary() })) {
+    tone({ f: 90, f2: 55, type: 'sine', d: 0.25, v: 0.3 });
+    return;
+  }
   tone({ f: 90, f2: 55, type: 'sine', d: 0.25, v: 0.6 });
 }
 export function tick(urgent = false) {
+  if (sample('tick', { v: urgent ? 0.55 : 0.32, rate: urgent ? 1.25 : 1 })) return;
   tone({ f: urgent ? 1500 : 1100, type: 'square', d: 0.03, v: urgent ? 0.07 : 0.04, lp: 3000 });
 }
 export function drum(hi = false) {
@@ -329,9 +516,11 @@ export function fanfare() {
   drum(true);
 }
 export function select() {
+  if (sample('select', { v: 0.45, rate: vary(0.03) })) return;
   tone({ f: 660, type: 'triangle', d: 0.06, v: 0.15 });
 }
 export function deliver(i = 0) {
+  sample('softM', { v: 0.3, rate: vary() });
   tone({ f: 523 * 2 ** ((i * 2) / 12), type: 'triangle', d: 0.18, v: 0.16 });
   tone({ f: 3100 + i * 120, type: 'sine', d: 0.08, v: 0.04, at: 0.02 });
 }

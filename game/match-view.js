@@ -552,7 +552,7 @@ export function createMatchView(app) {
       S.lastTick = -1;
       if (d.step === 'pick') audio.scrape();
     } else if (seen.step !== d.step) {
-      if (d.step === 'place' && placer(d) !== S.me.id) audio.tok();
+      if (d.step === 'place' && placer(d) !== S.me.id) audio.grab();
       if (d.step === 'settle' && placer(d) !== S.me.id) {
         audio.whup();
         audio.whistle(ITEMS[d.drop?.item]?.kg ?? 0);

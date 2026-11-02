@@ -517,7 +517,7 @@ async function boot() {
         if (!isDemo) audio.scrape();
         break;
       case 'pick':
-        if (loud) audio.tok();
+        if (loud) audio.grab();
         if (!isDemo) {
           hintDone('pick');
           beginHand(so.c.snap, d.item, so.c.top, `solo:${so.c.draws}:${so.c.load}`);
@@ -571,6 +571,7 @@ async function boot() {
       case 'setoff':
         if (loud) {
           audio.brass(d.mood >= 2 ? [392, 523.3, 659.3] : [293.7, 392]);
+          audio.strap();
           audio.whoosh();
         }
         if (!isDemo && d.mood >= 2 && cam) {
@@ -585,7 +586,10 @@ async function boot() {
         if (loud) audio.bell(0);
         break;
       case 'arrive':
-        if (loud) audio.brass([293.7, 440, 587.3]);
+        if (loud) {
+          audio.brass([293.7, 440, 587.3]);
+          audio.gong();
+        }
         if (!isDemo) {
           const on = so.c.snap.map((r) => ITEMS[r[0]]?.key);
           if (on.includes('cat')) award('cat-nap');
@@ -683,7 +687,7 @@ async function boot() {
   function landJuice(item, x, y, energy, loud = true) {
     const def = ITEMS[item];
     const kg = def?.kg ?? 0;
-    if (loud) audio.land(def?.mat, energy);
+    if (loud) audio.land(def?.mat, energy, kg, def?.key);
     S.camel.squash = Math.min(1, S.camel.squash + 0.2 + kg / 30);
     actor.impulse(kg, energy);
     fx.shake(Math.min(0.55, kg / 36 + energy * 0.01), { x: 0.15, y: 1 });
@@ -798,7 +802,7 @@ async function boot() {
     if (p.kind === 'solo') S.solo.pick(i);
     else {
       S.net.pick(turnKey(p.d), i);
-      audio.tok();
+      audio.grab();
       hintDone('pick');
       S.pickedAt = S.t;
       // the anvil handed on (a badge if they break it with it)
@@ -1313,6 +1317,10 @@ async function boot() {
     // the camel faces left: walking, the land slides right
     sc.scroll = -(look ? look.scroll : st.scroll);
     sc.camel.walk = st.walking ? st.walkPhase : null;
+    // a footfall each time a pair of feet comes down (the pace gait plants both feet of a side at once)
+    const pace = sc.camel.walk == null ? null : Math.floor(sc.camel.walk / Math.PI);
+    if (pace != null && so.lastPace != null && pace !== so.lastPace && (!demo || S.screen === 'title')) audio.step(pace, demo ? 0.6 : 1);
+    so.lastPace = pace;
     sc.town = look ? look.townX : null;
     sc.bridge = demo;
     sc.needle = v.S;
