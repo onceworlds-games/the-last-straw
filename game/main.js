@@ -69,7 +69,7 @@ async function boot() {
   safe(() => document.fonts?.load?.(`800 18px Archivo`)?.catch?.(() => {}));
 
   const S = {
-    screen: 'title',
+    screen: 'game',
     t: 0,
     room: null,
     net: null,
@@ -100,8 +100,6 @@ async function boot() {
     soloPaused: false,
     soloOver: null,
     soloBoard: null,
-    demo: null,
-    demoWait: 0,
     closed: null,
     autoHand: null,
     autoPickAt: 0,
@@ -111,7 +109,6 @@ async function boot() {
     countdownN: -1,
     lastTick: -1,
     avatars: new Map(),
-    hiddenLobby: null,
     reserved: null,
     hostStartAt: 0,
     toasts: [],
@@ -318,18 +315,16 @@ async function boot() {
     });
     room.on('starting', () => {
       // a match is starting for this page: a solo run ends (kg so far counts in Caravan)
-      if (S.screen === 'solo' && !room.spectating) endSolo(true);
-      if (S.screen === 'title') S.screen = 'game';
+      if (room.spectating) return;
+      closeMenus();
     });
     room.on('matchstart', () => {
       S.roundItems = [];
       S.roundsSeen.clear();
       S.results = null;
       S.lastRoundEnd = null;
-      if (S.screen === 'solo') endSolo(true);
-      if (S.screen === 'title') S.screen = 'game';
+      closeMenus();
     });
-    room.on('match', () => (S.hiddenLobby = null));
     room.on('rename', () => {
       S.me.name = room.me?.name ?? S.me.name;
     });
@@ -368,15 +363,11 @@ async function boot() {
     return null;
   }
 
-  // ---------------------------------------------------------------- the lobby strip
-
-  function syncLobbyStrip() {
-    const room = S.room;
-    if (!room || !room.hideLobby) return;
-    const hide = S.screen === 'title' || S.screen === 'solo';
-    if (S.hiddenLobby === hide) return;
-    S.hiddenLobby = hide;
-    safe(() => room.hideLobby(hide));
+  /** Readying, or a match starting for this page, closes a solo run (kg so far counts in Caravan) or the Stable. */
+  function closeMenus() {
+    if (S.screen === 'solo') endSolo(true);
+    else if (S.screen === 'stable') closeStable();
+    audio.init();
   }
 
   // ---------------------------------------------------------------- hints
@@ -399,17 +390,7 @@ async function boot() {
     }
   }
 
-  // ---------------------------------------------------------------- local runs (Caravan, Daily, the title's animals)
-
-  function newDemo() {
-    // captures only (the autoplay, never in production): `&seed=` replays the title's first load
-    const capSeed = autoplay && !S.demoSeeded ? params.get('seed') : null;
-    S.demoSeeded = true;
-    const seed = capSeed ? `demo:${capSeed.slice(0, 40)}` : `demo:${Math.floor(Math.random() * 1e9)}`;
-    S.demo = createSolo({ seed, kind: 'demo', auto: true, onEvent: (type, d) => onSoloEvent(type, d, true) });
-    S.camel.stand = S.lastDemoBroke ? 1 : 0;
-    S.lastDemoBroke = false;
-  }
+  // ---------------------------------------------------------------- local runs (Caravan, Daily)
 
   function startSolo(kind) {
     audio.init();
@@ -419,7 +400,7 @@ async function boot() {
     // captures only (the autoplay, never in production): `&seed=` replays one run
     const capSeed = auto ? params.get('seed') : null;
     const seed = kind === 'daily' ? dailySeed(day) : capSeed ? capSeed.slice(0, 40) : `caravan:${Math.floor(Math.random() * 1e9)}`;
-    S.solo = createSolo({ seed, kind, auto, onEvent: (type, d) => onSoloEvent(type, d, false) });
+    S.solo = createSolo({ seed, kind, auto, onEvent: (type, d) => onSoloEvent(type, d) });
     S.solo.scored = scored;
     S.solo.day = day;
     S.soloPaused = false;
@@ -451,7 +432,7 @@ async function boot() {
     S.soloOver = null;
     S.soloBoard = null;
     S.hand = null;
-    S.screen = S.room || !ow ? 'game' : 'title';
+    S.screen = 'game';
   }
 
   function finishRun(so, complete) {
@@ -507,74 +488,65 @@ async function boot() {
     return board;
   }
 
-  function onSoloEvent(type, d, isDemo) {
-    const so = isDemo ? S.demo : S.solo;
+  function onSoloEvent(type, d) {
+    const so = S.solo;
     if (!so) return;
-    const loud = !isDemo || S.screen === 'title';
     const cam = S.cam;
     switch (type) {
       case 'offer':
-        if (!isDemo) audio.scrape();
+        audio.scrape();
         break;
       case 'pick':
-        if (loud) audio.grab();
-        if (!isDemo) {
-          hintDone('pick');
-          beginHand(so.c.snap, d.item, so.c.top, `solo:${so.c.draws}:${so.c.load}`);
-        }
+        audio.grab();
+        hintDone('pick');
+        beginHand(so.c.snap, d.item, so.c.top, `solo:${so.c.draws}:${so.c.load}`);
         break;
       case 'drop':
-        if (loud) {
-          audio.whup();
-          audio.whistle(ITEMS[d.item].kg);
-        }
+        audio.whup();
+        audio.whistle(ITEMS[d.item].kg);
         S.camel.lookT = 1.6;
         break;
       case 'land':
-        landJuice(d.item, d.x, d.y, d.energy, loud);
+        landJuice(d.item, d.x, d.y, d.energy);
         break;
       case 'smash':
-        smashJuice(d.item, d.px ?? d.x, d.y, loud);
-        if (!isDemo && cam) {
+        smashJuice(d.item, d.px ?? d.x, d.y);
+        if (cam) {
           const p = toScreen(cam, d.px ?? d.x, d.y + 0.4);
           fx.floater('Smashed', p.x, p.y, null, PAL.rose);
         }
         break;
       case 'held':
-        if (loud) audio.grumble(d.mood);
-        if (!isDemo) {
-          award('first-load');
-          if (d.S >= 85) {
-            award('steady-hand');
-            if (!S.profile.steady) {
-              S.profile.steady = true;
-              saveProfile();
-            }
+        audio.grumble(d.mood);
+        award('first-load');
+        if (d.S >= 85) {
+          award('steady-hand');
+          if (!S.profile.steady) {
+            S.profile.steady = true;
+            saveProfile();
           }
-          if (d.top >= CAMEL.trayTop + 3) award('high-rise');
-          myLoadHeld({ item: d.item, soft: d.soft && d.bonus > 0, smash: d.smash });
-          if (cam && !d.smash) {
-            const p = toScreen(cam, d.x, d.top + 0.2);
-            const post = S.runSpots?.post;
-            const to = post ? { x: post.x + post.w * 0.45, y: post.y + post.h * 0.7 } : null;
-            const kg = heldKg(d.item, so.c.twist, false);
-            fx.floater(`+${kg}`, p.x, p.y, to, PAL.turq);
-            S.postBumpAt = S.t + 1.0;
-            if (d.soft && d.bonus > 0) {
-              fx.floater(d.streak > 1 ? `Soft ×${d.streak} +${d.bonus}` : `Soft +${d.bonus}`, p.x, p.y - 34, to, PAL.gold, 0.25);
-              audio.soft?.(d.streak);
-              fx.ring(d.x, d.top - 0.3, 0.9, PAL.gold);
-            }
+        }
+        if (d.top >= CAMEL.trayTop + 3) award('high-rise');
+        myLoadHeld({ item: d.item, soft: d.soft && d.bonus > 0, smash: d.smash });
+        if (cam && !d.smash) {
+          const p = toScreen(cam, d.x, d.top + 0.2);
+          const post = S.runSpots?.post;
+          const to = post ? { x: post.x + post.w * 0.45, y: post.y + post.h * 0.7 } : null;
+          const kg = heldKg(d.item, so.c.twist, false);
+          fx.floater(`+${kg}`, p.x, p.y, to, PAL.turq);
+          S.postBumpAt = S.t + 1.0;
+          if (d.soft && d.bonus > 0) {
+            fx.floater(d.streak > 1 ? `Soft ×${d.streak} +${d.bonus}` : `Soft +${d.bonus}`, p.x, p.y - 34, to, PAL.gold, 0.25);
+            audio.soft?.(d.streak);
+            fx.ring(d.x, d.top - 0.3, 0.9, PAL.gold);
           }
         }
         break;
       case 'setoff':
-        if (loud) {
-          audio.brass(d.mood >= 2 ? [392, 523.3, 659.3] : [293.7, 392]);
-          audio.strap();
-          audio.whoosh();
-        }
-        if (!isDemo && d.mood >= 2 && cam) {
+        audio.brass(d.mood >= 2 ? [392, 523.3, 659.3] : [293.7, 392]);
+        audio.strap();
+        audio.whoosh();
+        if (d.mood >= 2 && cam) {
           const p = toScreen(cam, -0.4, so.c.top + 0.6);
           fx.floater('Sweat ×2', p.x, p.y, null, PAL.rose);
           award('on-the-brink');
@@ -583,22 +555,18 @@ async function boot() {
         S.goSince = 0;
         break;
       case 'road':
-        if (loud) audio.bell(0);
+        audio.bell(0);
         break;
       case 'arrive':
-        if (loud) {
-          audio.brass([293.7, 440, 587.3]);
-          audio.gong();
-        }
-        if (!isDemo) {
-          const on = so.c.snap.map((r) => ITEMS[r[0]]?.key);
-          if (on.includes('cat')) award('cat-nap');
-          if (on.filter((k) => k === 'vase').length >= 3) award('fine-china');
-        }
+        audio.brass([293.7, 440, 587.3]);
+        audio.gong();
+        const on = so.c.snap.map((r) => ITEMS[r[0]]?.key);
+        if (on.includes('cat')) award('cat-nap');
+        if (on.filter((k) => k === 'vase').length >= 3) award('fine-china');
         S.receipt = { at: S.t, town: d.leg + 1, pay: d.pay, done: false, shown: 0 };
         break;
       case 'deliver': {
-        if (!isDemo && cam) {
+        if (cam) {
           const p = toScreen(cam, d.x, d.y);
           fx.floater(`+${d.kg}`, p.x, p.y, S.receiptAt ?? null, PAL.turq);
           audio.deliver(d.i);
@@ -606,68 +574,55 @@ async function boot() {
         break;
       }
       case 'leg':
-        if (!isDemo) {
-          if (S.receipt) S.receipt.done = true;
-          const at = S.receiptAt ?? L?.center;
-          if (at) fx.floater(`+${d.kg}`, at.x, (S.receiptBottom ?? at.y) + 26, S.myTagPos ?? null, PAL.gold, 0.1);
-          audio.fanfare();
-          audio.coins(Math.min(14, 4 + Math.round(d.kg / 8)));
-          S.perkShowAt = S.t + 1.1;
-          S.perkSel = null;
-          if (d.pay?.short) {
-            S.patienceLostAt = S.t;
-            audio.snort();
-          }
-          if (d.leg + 1 >= 6) award('six-towns');
-          if (d.leg + 1 >= 10) award('ten-towns');
-          S.profile.bestTown = Math.max(S.profile.bestTown, d.leg + 1);
-          gainXp(d.kg * XP.kg);
-          progress('kg', d.kg);
-          progress('town', d.leg + 1);
+        if (S.receipt) S.receipt.done = true;
+        const at = S.receiptAt ?? L?.center;
+        if (at) fx.floater(`+${d.kg}`, at.x, (S.receiptBottom ?? at.y) + 26, S.myTagPos ?? null, PAL.gold, 0.1);
+        audio.fanfare();
+        audio.coins(Math.min(14, 4 + Math.round(d.kg / 8)));
+        S.perkShowAt = S.t + 1.1;
+        S.perkSel = null;
+        if (d.pay?.short) {
+          S.patienceLostAt = S.t;
+          audio.snort();
         }
+        if (d.leg + 1 >= 6) award('six-towns');
+        if (d.leg + 1 >= 10) award('ten-towns');
+        S.profile.bestTown = Math.max(S.profile.bestTown, d.leg + 1);
+        gainXp(d.kg * XP.kg);
+        progress('kg', d.kg);
+        progress('town', d.leg + 1);
         break;
       case 'perk':
-        if (!isDemo) {
-          townSign(so, S.t + VEIL * 0.55);
-          audio.select();
-          if (d.perk === 'water') S.patienceGainAt = S.t;
-          S.receipt = null;
-          S.receiptAt = null;
-          S.receiptBottom = null;
-        }
+        townSign(so, S.t + VEIL * 0.55);
+        audio.select();
+        if (d.perk === 'water') S.patienceGainAt = S.t;
+        S.receipt = null;
+        S.receiptAt = null;
+        S.receiptBottom = null;
         break;
       case 'fall':
-        if (loud) {
-          fx.hitStop(0, 1.1, 0.35);
-          audio.snort();
-          audio.whoosh();
-        }
+        fx.hitStop(0, 1.1, 0.35);
+        audio.snort();
+        audio.whoosh();
         fx.puff(d.x, 0.02, 18, 1.3);
         break;
       case 'over':
         if (d.r === 'broke') {
-          if (loud) {
-            fx.hitStop(0.1, 0.9, 0.28);
-            fx.shake(0.85, { x: 0.2, y: 1 });
-            fx.punch(0.05);
-            audio.crack();
-            audio.whoosh();
-          }
+          fx.hitStop(0.1, 0.9, 0.28);
+          fx.shake(0.85, { x: 0.2, y: 1 });
+          fx.punch(0.05);
+          audio.crack();
+          audio.whoosh();
           fx.splinters(0, CAMEL.trayTop, 18);
-          if (isDemo) S.lastDemoBroke = true;
-          if (!isDemo && d.item === STRAW) award('last-straw');
-        } else if (loud) audio.thud();
-        if (!isDemo) {
-          S.softRun = 0;
-          S.patienceLostAt = S.t + 0.6;
-          if (d.result === 'lost') S.lostSign = { at: S.t + 0.5, road: d.road };
-        }
+          if (d.item === STRAW) award('last-straw');
+        } else audio.thud();
+        S.softRun = 0;
+        S.patienceLostAt = S.t + 0.6;
+        if (d.result === 'lost') S.lostSign = { at: S.t + 0.5, road: d.road };
         break;
       case 'collapse':
-        if (loud) {
-          audio.clatter();
-          fx.shake(0.6, { x: 0.1, y: 1 });
-        }
+        audio.clatter();
+        fx.shake(0.6, { x: 0.1, y: 1 });
         fx.puff(-0.8, 0.02, 14, 1.4);
         fx.puff(0.9, 0.02, 14, 1.4);
         break;
@@ -675,19 +630,16 @@ async function boot() {
         S.lostSign = null;
         break;
       case 'done':
-        if (isDemo) S.demoWait = 2.5;
-        else {
-          S.soloOver = { at: S.t, kind: d.kind };
-          finishRun(so, true);
-        }
+        S.soloOver = { at: S.t, kind: d.kind };
+        finishRun(so, true);
         break;
     }
   }
 
-  function landJuice(item, x, y, energy, loud = true) {
+  function landJuice(item, x, y, energy) {
     const def = ITEMS[item];
     const kg = def?.kg ?? 0;
-    if (loud) audio.land(def?.mat, energy, kg, def?.key);
+    audio.land(def?.mat, energy, kg, def?.key);
     S.camel.squash = Math.min(1, S.camel.squash + 0.2 + kg / 30);
     actor.impulse(kg, energy);
     fx.shake(Math.min(0.55, kg / 36 + energy * 0.01), { x: 0.15, y: 1 });
@@ -697,20 +649,18 @@ async function boot() {
     fx.puff(x, by, Math.round(3 + kg / 3), 0.4 + kg / 40);
     fx.debris(def?.mat, x, by, energy, w);
     fx.ring(x, by, 0.3 + w * 0.9, kg >= 12 ? '#FFE7A3' : '#FFF0D9');
-    if (kg >= 14 && loud) {
+    if (kg >= 14) {
       fx.punch(0.01 + kg / 2400);
       fx.hitStop(0.04, 0, 1);
     }
-    if (loud && kg >= 8) audio.creak(0.12);
+    if (kg >= 8) audio.creak(0.12);
   }
 
-  function smashJuice(item, x, y, loud = true) {
+  function smashJuice(item, x, y) {
     fx.shatter(x, y);
     fx.shake(0.45, { x: 0.3, y: 1 });
-    if (loud) {
-      fx.hitStop(0.06, 0.3, 0.4);
-      audio.smash?.();
-    }
+    fx.hitStop(0.06, 0.3, 0.4);
+    audio.smash?.();
   }
 
   // ---------------------------------------------------------------- my hands
@@ -911,17 +861,14 @@ async function boot() {
       if (k === 'Enter' || k === 'Space') rejoin();
       return;
     }
-    if (S.screen === 'title') {
-      if (k === 'Enter' || k === 'Space') pressPlay();
-      return;
-    }
+    // Enter is the platform's Ready key: the game binds nothing to it.
     if (S.screen === 'stable') {
       if (k === 'Escape' || k === 'Backspace') closeStable();
       return;
     }
     if (S.screen === 'solo') {
       if (S.soloOver && S.soloBoard) {
-        if (k === 'Space' || k === 'Enter') startSolo(S.solo.kind);
+        if (k === 'Space') startSolo(S.solo.kind);
         else if (k === 'Escape') endSolo(false);
         return;
       }
@@ -930,7 +877,7 @@ async function boot() {
         return;
       }
       if (S.soloPaused) {
-        if (k === 'Enter' || k === 'Space') S.soloPaused = false;
+        if (k === 'Space') S.soloPaused = false;
         return;
       }
     }
@@ -940,7 +887,7 @@ async function boot() {
         if (i >= 0) choosePerk(i);
         else if (k === 'ArrowLeft' || k === 'KeyA') S.perkSel = clamp((S.perkSel ?? 1) - 1, 0, 2);
         else if (k === 'ArrowRight' || k === 'KeyD') S.perkSel = clamp((S.perkSel ?? 1) + 1, 0, 2);
-        else if ((k === 'Space' || k === 'Enter') && S.perkSel != null) choosePerk(S.perkSel);
+        else if (k === 'Space' && S.perkSel != null) choosePerk(S.perkSel);
         if (k.startsWith('Arrow') || k === 'Space') e.preventDefault();
         return;
       }
@@ -955,14 +902,14 @@ async function boot() {
       else if (k === 'Digit2' || k === 'Numpad2') doPick(1);
       else if (k === 'ArrowLeft' || k === 'KeyA') S.cartSel = 0;
       else if (k === 'ArrowRight' || k === 'KeyD') S.cartSel = 1;
-      else if ((k === 'Space' || k === 'Enter') && (S.cartSel === 0 || S.cartSel === 1)) doPick(S.cartSel);
+      else if (k === 'Space' && (S.cartSel === 0 || S.cartSel === 1)) doPick(S.cartSel);
       if (k.startsWith('Arrow') || k === 'Space') e.preventDefault();
       return;
     }
     if (myPlace()) {
       if (k === 'KeyQ') turnHand(1);
       else if (k === 'KeyE') turnHand(-1);
-      else if (k === 'Space' || k === 'Enter') doDrop();
+      else if (k === 'Space') doDrop();
       if (k.startsWith('Arrow') || k === 'Space') e.preventDefault();
     }
   });
@@ -988,7 +935,6 @@ async function boot() {
   function press(hit) {
     const id = hit.id;
     audio.init();
-    if (id === 'play') return pressPlay();
     if (id === 'pick') return doPick(hit.data);
     if (id === 'drop') return doDrop();
     if (id === 'ccw') return turnHand(1);
@@ -1042,15 +988,6 @@ async function boot() {
       return;
     }
     if (id === 'rejoin') return rejoin();
-    if (id === 'backlobby') return safe(() => S.net?.match?.endMatch());
-  }
-
-  function pressPlay() {
-    audio.init();
-    audio.tok();
-    S.screen = 'game';
-    S.hiddenLobby = null;
-    if (!S.room && !ow) S.screen = 'game';
   }
 
   // the platform's menu and touch controls: the layout reads ow.ui.reserved every frame, and resets the camera when it moves
@@ -1094,14 +1031,16 @@ async function boot() {
     const pr = (ow?.settings && safe(() => ow.settings.pixelRatio(2), null)) || Math.min(2, window.devicePixelRatio || 1);
     R.resize(W, H, pr);
     S.reserved = ow && ow.ui ? safe(() => ow.ui.reserved ?? null, null) : null;
-    syncLobbyStrip();
+    // Readied on the platform's strip: straight back from a solo run or the Stable.
+    const ready = !!S.room?.me?.ready;
+    if (ready && !S.wasReady) closeMenus();
+    S.wasReady = ready;
     hits.clear();
     keyMove(dt);
     autoStartMatch();
 
     let sc;
     if (S.closed) sc = closedScene();
-    else if (S.screen === 'title') sc = titleScene(dt, wdt);
     else if (S.screen === 'solo' && S.solo) sc = soloScene(dt, wdt);
     else if (S.screen === 'stable') sc = stableScene(dt, wdt);
     else sc = roomScene(dt, wdt);
@@ -1127,11 +1066,7 @@ async function boot() {
         S.profile.stars = Math.floor(stars);
         cleanProgress(S.profile);
       }
-      if (autoplay === 'stable') {
-        pressPlay();
-        openStable();
-      }
-      if (autoplay === 'lobby') pressPlay();
+      if (autoplay === 'stable') openStable();
     }
     // captures: `&endat=<s>` ends the run then, to show the board
     const endAt = Number(params.get('endat'));
@@ -1147,7 +1082,6 @@ async function boot() {
     }
     if (!S.autoStart || !S.room || !S.net) return;
     const room = S.room;
-    if (S.screen === 'title') pressPlay();
     if (room.match?.phase !== 'lobby') return;
     if (S.t < 1.5 || S.t < S.hostStartAt) return;
     S.hostStartAt = S.t + 2;
@@ -1189,48 +1123,6 @@ async function boot() {
       hits.add(r, 'rejoin');
     });
     return sc;
-  }
-
-  // ------------------------------------------------ the title: animals loading the camel
-
-  function titleScene(dt, wdt) {
-    if (!S.demo) newDemo();
-    if (S.demoWait > 0) {
-      S.demoWait -= dt;
-      if (S.demoWait <= 0) newDemo();
-    }
-    S.demo.update(wdt);
-    const sc = soloWorld(S.demo, true, wdt);
-    sc.title = true;
-    audio.setMusic('menu', 0);
-    sc.hud.push((ctx) => drawTitle(ctx));
-    return sc;
-  }
-
-  /** The name at the top, under the platform's menu when it would reach it. */
-  function titleLayout() {
-    const W = R.W, H = R.H;
-    const size = Math.round(clamp(Math.min(W / 6.4, H / 5.2), 50, 132));
-    const tw = Math.min(W - 30, textWidth(R.ctx, 'The Last Straw', size, { display: true, weight: 900 }));
-    const menu = L?.menu;
-    const top = menu && menu.y < H / 2 && W / 2 - tw / 2 < menu.x + menu.w + 8 && W / 2 + tw / 2 > menu.x - 8 ? menu.y + menu.h + 6 : 12;
-    const y = top + size * 0.55;
-    return { size, y, bottom: y + size * 0.75 };
-  }
-
-  function drawTitle(ctx) {
-    const W = L.W, H = L.H;
-    const { size, y } = titleLayout();
-    const s = 'The Last Straw';
-    text(ctx, s, W / 2 + size * 0.05, y + size * 0.06, { size, display: true, weight: 900, color: PAL.ink, outline: false });
-    text(ctx, s, W / 2, y, { size, display: true, weight: 900, color: PAL.bone, lw: Math.max(4, size * 0.06) });
-    const tw = Math.min(W - 30, textWidth(ctx, s, size, { display: true, weight: 900 }));
-    goldenStraw(ctx, W / 2 - tw * 0.48, y + size * 0.6, W / 2 + tw * 0.48, y + size * 0.54, Math.max(8, size * 0.1));
-    // Play on the sand, in front of the weighbridge
-    const bw = Math.min(300, W * 0.62), bh = 68;
-    const by = clamp(L.gy + (H - L.gy) / 2 - bh / 2 + 6, L.gy + 10, H - bh - 10);
-    const r = slab(ctx, { x: W / 2 - bw / 2, y: by, w: bw, h: bh }, 'Play', { primary: true, size: 38 });
-    hits.add(r, 'play');
   }
 
   // ------------------------------------------------ a local run as a scene
@@ -1303,45 +1195,36 @@ async function boot() {
     if (tw) setTimeout(() => audio.brass([392, 523.3]), Math.max(0, (at - S.t) * 1000));
   }
 
-  function soloWorld(so, demo, wdt) {
+  function soloWorld(so, wdt) {
     const sc = baseScene();
     const st = so.st;
     const v = so.view();
     const c = so.c;
-    const look = demo ? null : soloLook(so, wdt);
+    const look = soloLook(so, wdt);
     sc.items = v.items;
     sc.saddle = v.saddle;
     sc.crack = v.crack;
     sc.camel.fold = v.fold;
     sc.camel.knocked = v.knocked;
     // the camel faces left: walking, the land slides right
-    sc.scroll = -(look ? look.scroll : st.scroll);
+    sc.scroll = -look.scroll;
     sc.camel.walk = st.walking ? st.walkPhase : null;
     // a footfall each time a pair of feet comes down (the pace gait plants both feet of a side at once)
     const pace = sc.camel.walk == null ? null : Math.floor(sc.camel.walk / Math.PI);
-    if (pace != null && so.lastPace != null && pace !== so.lastPace && (!demo || S.screen === 'title')) audio.step(pace, demo ? 0.6 : 1);
+    if (pace != null && so.lastPace != null && pace !== so.lastPace) audio.step(pace, 1);
     so.lastPace = pace;
-    sc.town = look ? look.townX : null;
-    sc.bridge = demo;
+    sc.town = look.townX;
+    sc.bridge = false;
     sc.needle = v.S;
-    sc.band = demo ? BAND : runBand(c);
+    sc.band = runBand(c);
     sc.camel.mood = st.beat ? 3 : c.step === 'settle' ? Math.max(c.mood, moodOf(v.S, c.T)) : c.mood;
     if (st.beat) sc.camel.mood = st.beat.kind === 'broke' ? 3 : 2;
-    if (demo) {
-      sc.tod = 0.12;
-      sc.biome = 'market';
-    } else {
-      sc.biome = look.twist === 'night' ? 'night' : biomeFor(look.leg);
-      sc.tod = look.twist === 'night' ? 0.95 : townTod(look.leg);
-      const tw = TWISTS[look.twist];
-      if (tw?.wind && (c.step === 'settle' || c.step === 'road' || c.step === 'place')) fx.wind(Math.sign(runPhysics(c).wind ?? 1) * 0.55);
-    }
+    sc.biome = look.twist === 'night' ? 'night' : biomeFor(look.leg);
+    sc.tod = look.twist === 'night' ? 0.95 : townTod(look.leg);
+    const tw = TWISTS[look.twist];
+    if (tw?.wind && (c.step === 'settle' || c.step === 'road' || c.step === 'place')) fx.wind(Math.sign(runPhysics(c).wind ?? 1) * 0.55);
     const top = c.top;
     sc.box.y1 = Math.max(3.0, top + 1.0);
-    if (demo && S.camel.stand > 0) {
-      S.camel.stand = Math.max(0, S.camel.stand - wdt / 1.6);
-      sc.camel.fold = Math.max(sc.camel.fold, S.camel.stand);
-    }
     // a cat strolling along the load
     if (v.walkingCat >= 0 && sc.items[v.walkingCat]) {
       const cat = sc.items[v.walkingCat];
@@ -1371,7 +1254,7 @@ async function boot() {
     }
     // the cart (it waits at the town while the camel is on the road)
     const away = c.step === 'road' || c.step === 'deliver' || c.step === 'perk';
-    sc.cart = away ? null : { offer: c.offer.slice(), hide: c.step === 'pick' ? -1 : c.pick, big: !demo && c.step === 'pick' && !st.auto, sel: S.cartSel, keys: !S.touch };
+    sc.cart = away ? null : { offer: c.offer.slice(), hide: c.step === 'pick' ? -1 : c.pick, big: c.step === 'pick' && !st.auto, sel: S.cartSel, keys: !S.touch };
     return sc;
   }
 
@@ -1405,7 +1288,7 @@ async function boot() {
     // an ended run stops where it is (the animals of a capture stop loading too)
     const halted = S.soloOver?.kind === 'ended' && so.st.auto && !so.st.beat && so.c.step !== 'settle';
     if (!S.soloPaused && !halted) so.update(wdt);
-    const sc = soloWorld(so, false, wdt);
+    const sc = soloWorld(so, wdt);
     if (S.soloOver) sc.hands = null;
     const c = so.c;
     const st = so.st;
@@ -1534,7 +1417,6 @@ async function boot() {
 
   function openStable() {
     audio.select();
-    S.stableFrom = S.screen === 'solo' ? 'game' : S.screen;
     if (S.screen === 'solo') endSolo(false);
     S.screen = 'stable';
     S.stableAt = S.t;
@@ -1544,7 +1426,7 @@ async function boot() {
   function closeStable() {
     audio.tok();
     S.fresh.clear();
-    S.screen = S.stableFrom === 'title' ? 'title' : 'game';
+    S.screen = 'game';
     S.cam = null;
     saveProfile();
   }
@@ -1724,11 +1606,6 @@ async function boot() {
     const tagsN = sc.tags ? sc.tags.length : 1;
     const inLobby = S.room?.match?.phase === 'lobby' && S.screen === 'game';
     L = layout(R.W, R.H, S.reserved, { lobby: inLobby, tags: tagsN });
-    if (sc.title) {
-      const T = titleLayout();
-      L.stage.y = T.bottom;
-      L.stage.h = Math.max(80, L.gy - T.bottom);
-    }
     if (sc.stage) L.stage = sc.stage(L);
     if (sc.ground) L.gy = sc.ground(L) ?? L.gy;
 
@@ -1765,13 +1642,13 @@ async function boot() {
       fx.sweat(hp.x + 0.12, hp.y + 0.1);
     }
     // a creak now and then, faster with the strain
-    if (strain01 > 0.55 && S.screen !== 'title' && Math.random() < dt * strain01 * 0.8) audio.creak(0.03 + strain01 * 0.05);
+    if (strain01 > 0.55 && Math.random() < dt * strain01 * 0.8) audio.creak(0.03 + strain01 * 0.05);
 
     // the camera
     // frame the load and whatever is in the hands; push in a little while the camel is in the red
     const box = { ...sc.box };
     if (sc.hands?.visible && ITEMS[sc.hands.item]) box.y1 = Math.max(box.y1, sc.hands.y + extents(sc.hands.item, sc.hands.a).maxY + 0.3);
-    const danger = !sc.title && (sc.camel.mood ?? 0) >= 2 ? ((sc.camel.mood ?? 0) - 1) * 0.03 : 0;
+    const danger = (sc.camel.mood ?? 0) >= 2 ? ((sc.camel.mood ?? 0) - 1) * 0.03 : 0;
     const target = fitCamera(L.stage, L.gy, box);
     if (danger) {
       target.s *= 1 + danger;
@@ -1830,7 +1707,7 @@ async function boot() {
         }
       }
     }
-    if (sc.cart && !sc.title) {
+    if (sc.cart) {
       const boxes = painted.cartBoxes;
       if (sc.cart.big) boxes.forEach((b) => hits.add(b, 'pick', b.i));
       if (sc.cart.settings) for (const row of sc.cart.settings) if (row.can && row.rect) hits.add(row.rect, 'setting', row.id);

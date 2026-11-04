@@ -100,7 +100,7 @@ export function createMatchView(app) {
       const results = m.results;
       lob.players.forEach((p, i) => {
         const res = results?.find?.((r) => r.id === p.id);
-        tags.push({ id: p.id, name: p.name, seat: i, me: p.me, host: p.host, kg: res ? Number(res.points) || 0 : 0, label: res ? undefined : p.me ? 'You' : p.ready ? 'Ready' : '·', place: res?.place, avatar: avatarOf(p.id), faded: p.away, emblem: emblemOf(p.id, p.me) });
+        tags.push({ id: p.id, name: p.name, seat: i, me: p.me, host: p.host, kg: res ? Number(res.points) || 0 : 0, label: res ? undefined : p.me ? 'You' : '·', place: res?.place, avatar: avatarOf(p.id), faded: p.away, emblem: emblemOf(p.id, p.me) });
       });
       const nb = clamp(lob.bots ?? 0, 0, 6 - tags.length);
       for (let i = 0; i < nb; i++) tags.push({ id: `bot:${i}`, name: BOT_NAMES[i % BOT_NAMES.length], seat: tags.length, bot: true, kg: 0, label: '', faded: true, invite: true });
@@ -157,13 +157,23 @@ export function createMatchView(app) {
       S.countdownN = n;
       audio.drum(n === 1);
     }
-    sc.onSun = (ctx, x, y, r) => {
-      if (n <= 0 || n > 3) return;
-      const k = 1 - (n - left);
-      text(ctx, String(n), x, y + r * 0.04, { size: r * (1.2 + k * 0.15), display: true, weight: 900, color: PAL.ink, outline: false });
-    };
     sc.lanterns = { n: readSettings(S.room?.settings).rounds, lit: 0 };
     return sc;
+  }
+
+  /** A new round on this page, from its intro or (round 1, whose intro the host skips) from its first frame. */
+  function beginRound(m) {
+    const key = `${m.roundId}`;
+    if (S.introKey === key) return;
+    S.introKey = key;
+    S.introAt = S.t;
+    S.camel.stand = S.lastRoundEnd === 'broke' ? 1 : 0;
+    if (m.round === 1) audio.brass([293.7, 440]);
+    else audio.drum(true);
+    S.beat = null;
+    S.pred = null;
+    S.rankRes = null;
+    fx.clear();
   }
 
   function introScene(m, wdt) {
@@ -171,18 +181,7 @@ export function createMatchView(app) {
     audio.setMusic('play', 0);
     sc.tags = seatTags(m, null, 'intro');
     sc.needle = 0;
-    const key = `${m.roundId}`;
-    if (S.introKey !== key) {
-      S.introKey = key;
-      S.introAt = S.t;
-      S.camel.stand = S.lastRoundEnd === 'broke' ? 1 : 0;
-      if (m.round === 1) audio.brass([293.7, 440]);
-      else audio.drum(true);
-      S.beat = null;
-      S.pred = null;
-      S.rankRes = null;
-      fx.clear();
-    }
+    beginRound(m);
     S.camel.stand = Math.max(0, S.camel.stand - wdt / 1.5);
     sc.camel.fold = S.camel.stand;
     const d = S.net?.data;
@@ -221,6 +220,10 @@ export function createMatchView(app) {
     const sc = baseScene();
     const d = net.data;
     const phase = m.phase;
+    beginRound(m);
+    // Play begins as the platform's countdown ends: "Load!" passes over it without holding anyone up.
+    const loadAge = S.t - S.introAt;
+    if (m.round === 1 && phase === 'round' && loadAge < 1.1) sc.sign = { lines: [{ s: 'Load!', size: app.L.phone ? 56 : 80 }], drop: loadAge < 0.75 ? clamp(loadAge / 0.2, 0, 1) : clamp((1.1 - loadAge) / 0.35, 0, 1) };
     sc.tags = seatTags(m, d, phase);
     setLight(sc, m, d?.twist ?? '');
     sc.twist = d?.twist ?? '';
@@ -639,31 +642,11 @@ export function createMatchView(app) {
       return { id: s.id, name: s.name, seat: i, bot: !!s.bot, me: !!s.me, kg: Number(r?.points) || 0, place: r?.place, avatar: s.bot ? null : avatarOf(s.id), emblem: s.bot ? null : emblemOf(s.id, s.me) };
     });
     sc.tags.sort((a, b) => (a.place ?? 9) - (b.place ?? 9));
-    const room = S.room;
     sc.hud.push((ctx) => {
       rankCard(ctx);
       const w = winner ? `${winner.name} wins` : 'Results';
       const age = S.t - S.resultsAt;
       drawSign(ctx, app.L.center.x, app.L.rope.y + app.L.rope.h + (app.L.phone ? 50 : 70), [{ s: w, size: app.L.phone ? 36 : 54 }], clamp(age / 0.4, 0, 1));
-      const left = m.secondsLeft;
-      if (room?.kind === 'public' && left != null) {
-        // a sand bar runs back to the lobby
-        const bw = Math.min(360, app.L.W * 0.6), bx = app.L.W / 2 - bw / 2, by = app.L.H - 30;
-        ctx.fillStyle = 'rgba(28,15,46,0.5)';
-        ctx.fillRect(bx, by, bw, 10);
-        ctx.fillStyle = PAL.gold;
-        ctx.fillRect(bx, by, bw * clamp(left / 25, 0, 1), 10);
-        ctx.strokeStyle = PAL.ink;
-        ctx.lineWidth = 2;
-        ctx.strokeRect(bx, by, bw, 10);
-      } else if (room?.isHost) {
-        const bw = 240, bh = 62;
-        const r = slab(ctx, { x: app.L.W / 2 - bw / 2, y: app.L.H - bh - 24, w: bw, h: bh }, 'Back to lobby', { primary: true, size: 28 });
-        hits.add(r, 'backlobby');
-      } else {
-        const h = room?.players?.get?.(room.host)?.name ?? 'the host';
-        drawHint(ctx, `Waiting for ${String(h).slice(0, 16)}`, app.L.W / 2, app.L.H - 50, S.t);
-      }
     });
     return sc;
   }

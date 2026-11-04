@@ -63,9 +63,8 @@ Genre: Party. 2D side view. 1-6 players, bots in empty seats.
 
 | Time | Screen | Hint (then gone) |
 |---|---|---|
-| 0 s | Title: the scene alive at sunset. Animal paws load the camel, it chews and side-eyes them; when the load goes the camel folds, and the next time it gets up first. "The Last Straw" big across the sky with a golden straw under it, one gold Play slab on the sand. | none |
-| ~2 s | Play: the lobby in the same scene: your tag on the rope (avatar, name), animal tags beside it faded where bots will sit, the host's board on the cart, the Caravan and Daily cart signposts, the platform's Ready strip. | none |
-| ~4 s | Ready. Our own 3-2-1 painted on the sun with three drum hits, then "Load!" on a sign. | none |
+| 0 s | The lobby, straight away: the camel chewing at sunset, your tag on the rope (avatar, name), animal tags beside it faded where bots will sit, the host's board on the cart, the Caravan and Daily cart signposts, the platform's Ready strip. | none |
+| ~4 s | Ready. The platform's 3-2-1 with our three drum hits, and the round is on: "Load!" passes over the first second. | none |
 | ~7 s | Round 1. The cart rolls in with two items and grows into two big pick targets; the golden straw points down at your tag. | "Pick one" (arrow to the cart) |
 | ~9 s | You tap the crate. The other item stays on the cart and shows on the next tag. | "Fennec gets the other" (arrow to that tag), 2 s |
 | ~10 s | The crate rises into your hands (your sleeves) above the camel. A dotted ghost shows where it first touches (rose if that's the sand). | "Move to aim" / "Drag to aim"; then "Q E turn" / "Turn it" (arrow to the buttons); then "Click to drop" / "Tap Drop" |
@@ -84,7 +83,7 @@ breaking point is drawn from the upper half of the red.
 | Pick | Click an item; or 1 / 2; or ← → then Space | Tap an item (each pick target is at least 56 px, about 120 × 80 on a phone) |
 | Move | Mouse: the item follows the pointer. Keys: A D / ← → sideways, W S / ↑ ↓ height | Drag anywhere in the scene: the item moves with the finger's movement, never under it |
 | Turn | Q / E, or the mouse wheel (15° a step) | The ↺ and ↻ slabs |
-| Drop | Click, or Space / Enter | The Drop slab (the biggest); lifting a finger never drops |
+| Drop | Click, or Space | The Drop slab (the biggest); lifting a finger never drops |
 
 Touch buttons are the game's own wooden slabs (Drop 72 px, 64 on phones; ↺ and ↻ 64 px; 12 px apart), shown only during
 your place step, in the lower right and moved above anything in `ow.ui.reserved` there (the platform's corners stay clear).
@@ -129,15 +128,15 @@ A player alone gets all of it from the same lobby:
 
 ## Multiplayer
 
-- **Public game**: `ow.rooms.join({ maxPlayers: 6, minPlayers: 1, lobby: 'bar', ownCountdown: true, settings: [...] })`,
-  once, as the page loads. Friends get private servers from the platform. The title has one Play button.
+- **Public game**: `ow.rooms.join({ maxPlayers: 6, minPlayers: 1, lobby: 'bar', settings: [...] })`,
+  once, as the page loads. Friends get private servers from the platform. There's no title: the page opens on the lobby.
 - **Settings** (drawn by the game on the cart's side board; the host taps a row to cycle it with `room.setSetting`):
   Rounds 3 / 5 (3), Turn 10 / 15 / 25 s (15), Bots Off / to 4 / to 6 (to 4).
 - **Lobby and ready-up**: the platform's Ready strip; public servers start on the room's countdown when everyone is ready;
   a private server's host presses Start when `room.canStart`. Joining never starts anything. Empty seats on the rope show
   the animal that will sit there, faded, and tapping one opens `ow.ui.showInvite()`.
-- **Match**: `createMatch` with `rounds: 'rounds'`, `introSeconds: 2.2` ("Round 2" while the camel stands up),
-  `roundEndSeconds: 5`, `resultsSeconds: 25` in public servers and `0` in private ones (the host's "Back to lobby"),
+- **Match**: `createMatch` with `rounds: 'rounds'`, `introSeconds: 2.2` ("Round 2" while the camel stands up; the host skips it in round 1),
+  `roundEndSeconds: 5`, `resultsSeconds: 6` (then the lobby, with the places on the tags and the platform's strip),
   `admit: 'round'`. The game runs its own turns inside each round in `match.data` (not the helper's turn timer, so a settle
   is never cut off by a clock).
 - **Turn order**: seat order (players, then bots), rotating the first placer each round. Leavers drop out of the order but
@@ -325,10 +324,6 @@ getting past the first towns and ending on its own. Progress: levels and their c
 All in one world; no panels floating over a dimmed screen. HUD text: Archivo 800 in bone with a 4 px ink outline, or ink on
 bone signboards.
 
-- **Title**: the scene in attract mode (animals loading until the load goes, about a minute, then the camel gets up and they
-  start again). "The Last Straw" in Big Shoulders Display 900, bone with an ink shadow, across the sky (under the platform's
-  menu when it would reach it), a golden straw underlining it. One gold Play slab (68 px tall) on the sand in front of the
-  weighbridge. Click, tap, Space or Enter.
 - **Lobby** (room phase lobby): the empty camel chewing, dressed as you dressed it; the tag rope across the top with up to 6 luggage tags (avatar or
   animal portrait, name, a seat symbol ● ▲ ■ ◆ ★ ⬢ in the seat colour, host marked with a small key; tap your own to change
   sleeves, an empty one to invite); the cart on the left with the settings board (three rows; the host taps to cycle, others
@@ -337,7 +332,7 @@ bone signboards.
   three signposts under it (hidden for a private server's host with friends waiting): "Stable" ("New look" when
   something is unlocked), "Caravan" and "Daily cart" (today's kg or "New"); everything above the platform's Ready strip. Results
   of the last match stay on the tags (place numbers) until the next one starts.
-- **Countdown**: 3-2-1 painted on the sun disc, drum on each, "Load!".
+- **Countdown**: the platform's 3-2-1, a drum from the game on each; "Load!" passes over the first second of round 1.
 - **Play**: the camel and its load centred (the camera eases out as the load grows); the cart at the left with the two
   offered items and their weight tags and the hourglass; the dial on its post right of the camel (on narrow screens it hangs
   from the rope's right end); the tag rope at the top, the placer's tag swung low with the golden straw pointing at it, the
@@ -352,8 +347,8 @@ bone signboards.
   what is under it), the last item on the peak with the
   winner's avatar (or animal) on it wearing the golden straw like a crown; "Ann wins" on a sign; tags hang 1st to 6th with
   total kg; straw confetti and a fanfare; your rank's card rises on the sand (bottom left, or above the slab on a narrow
-  screen): the emblem, the rank, its stars lighting or dropping one by one, "+2" / "-1" / "±0". Public: a sand bar runs
-  25 s back to the lobby. Private: the host's "Back to lobby" slab; everyone else sees "Waiting for" the host.
+  screen): the emblem, the rank, its stars lighting or dropping one by one, "+2" / "-1" / "±0". Then the lobby by itself,
+  with the places still on the tags and the platform's strip for the next match.
 - **Watching** (latecomer): the scene as everyone sees it, with "Next round" by the cart.
 - **Caravan / Daily**: your tag alone on the rope with kg delivered (big); the town post by the dial (the next town, its
   order filling up, a check when it is met) with the patience humps under it and the twist's tag; the dial with the

@@ -15,7 +15,7 @@
     { "keys": ["A", "D", "Left", "Right"], "action": "Move the item sideways" },
     { "keys": ["W", "S", "Up", "Down"], "action": "Raise or lower the item" },
     { "keys": ["Q", "E", "Wheel"], "action": "Turn the item 15°" },
-    { "keys": ["Click", "Space", "Enter"], "action": "Drop the item" },
+    { "keys": ["Click", "Space"], "action": "Drop the item" },
     { "keys": ["Drop", "↺", "↻"], "action": "Touch buttons while you place" },
     { "keys": ["G"], "action": "Set off for the next town (Caravan)" },
     { "keys": ["1", "2", "3"], "action": "Take a town's gift (Caravan)" },

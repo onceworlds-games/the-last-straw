@@ -12,7 +12,7 @@ export const SETTINGS = [
   { id: 'turn', label: 'Turn', options: [{ value: 10, label: '10 s' }, { value: 15, label: '15 s' }, { value: 25, label: '25 s' }], default: 15 },
   { id: 'bots', label: 'Bots', options: [{ value: 0, label: 'Off' }, { value: 4, label: 'To 4' }, { value: 6, label: 'To 6' }], default: 4 },
 ];
-export const JOIN = { maxPlayers: 6, minPlayers: 1, lobby: 'bar', ownCountdown: true, settings: SETTINGS };
+export const JOIN = { maxPlayers: 6, minPlayers: 1, lobby: 'bar', settings: SETTINGS };
 
 const optionValues = (s) => s.options.map((o) => (typeof o === 'object' ? o.value : o));
 /** The lobby's settings, each one a value the game offers (anything else is its default). */
@@ -56,7 +56,8 @@ export function createNet(room, lib, hooks = {}) {
     rounds: Number.isInteger(hooks.rounds) && hooks.rounds >= 1 && hooks.rounds <= 5 ? hooks.rounds : 'rounds',
     introSeconds: 2.2,
     roundEndSeconds: 5,
-    resultsSeconds: room.kind === 'public' ? 25 : 0,
+    // The winner on the heap and your rank's card for a moment; then the lobby, with the places on the rope and the platform's strip.
+    resultsSeconds: 6,
     admit: 'round',
     tick: 50,
     data: (v) => v === null || checkRecord(v) || 'not a round record',
@@ -359,6 +360,10 @@ export function createNet(room, lib, hooks = {}) {
     room.on('close', (reason) => hooks.onClose?.(reason)),
   ];
   const offResults = match.on('results', (standings, mine) => hooks.onResults?.(standings, mine));
+  // Round 1 begins as the platform's countdown ends; only later rounds have a wait of their own.
+  const offPhase = match.on('phase', (phase) => {
+    if (phase === 'intro' && match.round === 1 && room.isHost) match.skip?.();
+  });
 
   return {
     room,
@@ -376,7 +381,6 @@ export function createNet(room, lib, hooks = {}) {
     setSetting(id, value) {
       try {
         room.setSetting(id, value);
-        room.clearReady?.();
       } catch {}
       syncFill();
     },
@@ -396,6 +400,7 @@ export function createNet(room, lib, hooks = {}) {
     dispose() {
       for (const off of offs) off?.();
       offResults?.();
+      offPhase?.();
       bots.dispose();
       match.dispose();
     },
